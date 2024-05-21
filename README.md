@@ -20,12 +20,16 @@ MHeard
 Map (from MHeard)
 ![afbeelding](https://i.gyazo.com/3fc83dac7ee3be2025e4c6a2c1bc09a2.png)
 
-Setup to do when using:
+# Setup to do when using:
 Node used v18.4.0
 
 The serial config is in testold.js on line 211 {path: '/dev/ttyUSB0', baudRate: 9600} this point to an USB serial dongle the 1st one connected to the Rasberrie
 
 The website config on line 108 conncts to ws://127.0.0.1:7712 this needs to reflect your own config obviously; where 127.0.0.1 is the IP or DNS name of the machine that is running the testold.js
 
-To start from the command line start it cia
+To start from the command line start it via in the folder you have testold.js in
 $ clear & node testold.js --expose-gc
+
+# Side note
+This is early early setup, we still missing a lot of functions and to be fair, the js is a mess using two ways of serial port reading because well.. to lazy to do it right i guess...
+A fix for this should in time be made obviously so that we can choose between WA8DED or KISS or perhaps even Direwolf via simply selecting what module to start. But that for later versions
