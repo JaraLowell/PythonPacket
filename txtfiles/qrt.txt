@@ -1,0 +1,6 @@
+Tot ziens, %n
+
+Spreuk van de dag:
+%O
+
+NL0MSK: %c uitgelogd %d om %t

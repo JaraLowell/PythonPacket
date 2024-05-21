@@ -1,0 +1,6 @@
+Did is NodeJS Packet versie 1.0Beta
+
+Je kunt de volgende texten aanroepen
+
+ //News : nieuws           //Info : stations informatie
+ //Weer : het weer         //MH   : gehoorde stations
