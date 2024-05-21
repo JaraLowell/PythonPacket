@@ -20,7 +20,7 @@ MHeard
 Map (from MHeard)
 ![afbeelding](https://i.gyazo.com/3fc83dac7ee3be2025e4c6a2c1bc09a2.png)
 
-# Setup to do when using:
+# Setup
 Node used v18.4.0
 
 The serial config is in testold.js on line 211 {path: '/dev/ttyUSB0', baudRate: 9600} this point to an USB serial dongle the 1st one connected to the Rasberrie
@@ -30,7 +30,12 @@ The website config on line 108 conncts to ws://127.0.0.1:7712 this needs to refl
 To start from the command line start it via in the folder you have testold.js in
 $ clear & node testold.js --expose-gc
 
-# What to do
+if you have no http server to host the www folder, you can run
+$ clear & node httpserver.js
+
+Make sure your TNC modem was turned off and back one before starting the software, like give it a good seven counts before hitting enter after giving it power. Make sure the boudrate between pc is same as setup in the TNC modem (this is NOT tha trasmite boudrate) aand that the modem is in WA8DED mode.
+
+# To do...
 * Config file and option to change these via Config button
 * More cleaner and correct way of handling serial data and not as now via two ways
 * Additional option to choose either WA8DED or for example LISS
