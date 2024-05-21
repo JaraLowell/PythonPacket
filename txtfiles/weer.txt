@@ -1,0 +1,15 @@
+ .ooO  Het Weer .Ooo---------------------------------------------------------
+|               | Hier nu Licht bewolkt
+|    \__/       |
+|  _ /  .-.     | Temperatuur  : 23.7 (13 tot 23) graden Celsius
+|    \_(   ).   | Windsnelheid : 3 Beaufort
+|    /(___(__)  | Windrichting : Oost
+|               | Luchtdruk    : 1008.4 hPa
+|---------------`
+| Eerst zon, later onweersbuien. Morgen koeler
+|
+ .ooO  Zon Weer .Ooo---------------------------------------------------------
+| Zonstroom : 200            | 10m Band overdag     : Good
+| Zonspots  : 149            | 10m Band in de avond : Poor
+| Zonwind   : 374.1          | Signal Noise level   : S1-S2
+`----------------------------------------------------------------------------
