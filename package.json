@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "fs": "^0.0.1-security",
+    "JSON": "^1.0.0",
+    "legacy-encoding": "^3.0.0",
+    "node-fetch": "^3.3.1",
+    "os": "^0.1.2",
+    "request": "^2.88.2",
+    "serialport": "^10.5.0",
+    "sys": "^0.0.1",
+    "ws": "^8.13.0"
+  }
+}
