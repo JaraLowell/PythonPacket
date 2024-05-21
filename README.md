@@ -30,6 +30,13 @@ The website config on line 108 conncts to ws://127.0.0.1:7712 this needs to refl
 To start from the command line start it via in the folder you have testold.js in
 $ clear & node testold.js --expose-gc
 
+# What to do
+* Config file and option to change these via Config button
+* More cleaner and correct way of handling serial data and not as now via two ways
+* Additional option to choose either WA8DED or for example LISS
+* Working connect button rather then using ^C station
+* Maybe adding WSS and HTTPS as some browsers seem to think secure means somting when 30 trilion computers use it
+
 # Side note
 This is early early setup, we still missing a lot of functions and to be fair, the js is a mess using two ways of serial port reading because well.. to lazy to do it right i guess...
 A fix for this should in time be made obviously so that we can choose between WA8DED or KISS or perhaps even Direwolf via simply selecting what module to start. But that for later versions
