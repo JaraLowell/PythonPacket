@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>NodeJS Packet</title>
+    <script type="text/javascript" src="libs/jquery.js"></script>
+    <script type="text/javascript" src="libs/ham_geocoding.js"></script>
+    <link rel="stylesheet" href="libs/hamgeocoding.css" />
+  </head>
+  <body>
+    <link rel="stylesheet" href="libs/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script type="text/javascript" src="libs/leaflet.markercluster-src.js"></script>
+    <script type="text/javascript" src="libs/L.Maidenhead.js"></script>
+    <div class="container">
+      <div  class="fent">
+      <div id='map_canvas' style=' width: 100%; height: 500px; '></div>
+      <div class="gps">
+      <div class="label2">Latitude: </div><div class="latlng" id="lngDeg">&nbsp;</div>
+      <div class="label2">Longitude: </div><div class="latlng" id="latDeg">&nbsp;</div>
+      <div class="label2">Maidenhead locator or QTH grid square: </div>
+      <div  class="latlng" id="locator">&nbsp;</div>
+      <div class="clear"></div>
+    </div>
+  </div>
+
+  <script type="text/javascript">
+    var layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+        attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+        minZoom: 4,
+        maxZoom: 15
+    });
+
+    var layer2 = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+        attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+        minZoom: 4,
+        maxZoom: 15
+    });
+
+    var map = L.map('map_canvas', {
+        layers: [layer2, layer],
+        center: [52.9548, 7.0384],
+        zoom: 9
+    });
+
+    const baseLayers = {
+        'Light': layer2,
+        'Dark': layer
+    };
+
+    var maidenhead = L.maidenhead().addTo(map);
+
+    var overlayMaps = {
+        'QTH Locator': maidenhead
+    };
+
+    const layerControl = L.control.layers(baseLayers, overlayMaps).addTo(map);
+
+/*
+    map.on('zoomend', function (e) {
+        console.log(e.target._zoom);
+    });
+*/
+
+    /* Lets put our self on the map */
+    var myspot = locator2deg('JO32MW49');
+
+    var circle = L.circle(myspot, { color: 'red', fillColor: '#f03', fillOpacity: 0.5, radius: 250,}).addTo(map)
+    var markers = L.markerClusterGroup();
+
+    var title = 'NL0MSK';
+    var marker = L.marker(myspot, { title: title});
+    marker.bindPopup(title);
+    markers.addLayer(marker);
+
+    map.addLayer(markers);
+
+    $('.leaflet-container').css('cursor','default');
+
+    map.on('mousemove', onMapMove);
+    // map.on('click', onMapClick);
+
+    function locator2deg(locator) {
+        if(locator.length == 6) locator += "55AA";
+        if(locator.length == 8) locator += "LL";
+
+        var i = 0;
+        var loca = new Array();
+        while (i < 10) {
+            loca[i] = locator.charCodeAt(i) - 65;
+            i++;
+        }
+        loca[2] += 17;
+        loca[3] += 17;
+        loca[6] += 17;
+        loca[7] += 17;
+        var lon = (loca[0] * 20 + loca[2] * 2 + loca[4] / 12 + loca[6] / 120 + loca[8] / 2880 - 180);
+        var lat = (loca[1] * 10 + loca[3] + loca[5] / 24 + loca[7] / 240 + loca[9] /5760 - 90);
+        return ([lat, lon]);
+    }
+
+    function calc_gc(lat1, lon1, lat2, lon2) {
+        var R = 6378.137; // Radius of the earth in km
+        var dLat = deg2rad(lat2-lat1);  // deg2rad below
+        var dLon = deg2rad(lon2-lon1);
+        var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        var d = R * c; // Distance in km
+        return (Math.round(d * 100) / 100) + 'Km';
+    }
+
+    function deg2rad(deg) {
+        return deg * (Math.PI/180)
+    }
+
+    // Recieve the map nodes from main window;
+    var lasttx = '';
+    window.addEventListener("message", receiveMessage, false);
+    function receiveMessage(event) {
+        if(event.data != lasttx) {
+            lasttx = event.data;
+            console.log("new iframe data : ",event.data);
+            markers.clearLayers();
+            obj = JSON.parse(event.data);
+            var spot;
+            for(var k in obj) {
+
+                spot = locator2deg(obj[k]);
+
+                console.log(k + ':' + obj[k] + '>' + spot.toString());
+
+                if(k != 'NL0MSK') title = k + '<br>' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]); else title = k;
+                var marker = L.marker(spot, { title: title });
+                marker.bindPopup(title);
+                markers.addLayer(marker);
+            }
+        }
+    }
+  </script>
+  </body>
+</html>

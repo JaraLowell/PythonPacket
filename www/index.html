@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!-- <meta name="viewport" content="width=device-width, initial-scale=1"> -->
+    <meta name="robots" content="index, follow">
+    <!-- <meta name="viewport" content="minimal-ui, width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>NodeJS Packet</title>
+    <link rel="stylesheet" href="mystyles.css" />
+    <link rel="stylesheet" href="jquery.mCustomScrollbar.css" />
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+  </head>
+<body>
+  <div class="scene">
+    <div class="moon"></div>
+    <img src="img/forest.png" class="forest">
+    <img src="img/cloud1.png" class="cloud1">
+    <img src="img/cloud2.png" class="cloud2">
+    <img src="img/cloud3.png" class="cloud3">
+    <img src="img/cloud1.png" class="cloud4">
+    <img src="img/cloud2.png" class="cloud5">
+    <img src="img/cloud3.png" class="cloud6">
+  </div>
+
+  <div class="warning" style="display:none;">
+    <div class="warn-title"><h5>&nbsp;Error</h5></div>
+    <div class="theerror">Connection Lost to server</div>
+  </div>
+  <div class="chat">
+    <div ckass="channels">
+      <div class="info">
+        NodeJS HAM Radio Packet v1.0<br>
+      </div>
+      <div class="tnc-buttons-small">
+        <button class="chansel tnc-default" id="ch1">1 : · · · · · ·</button>
+        <button class="chansel tnc-default" id="ch2">2 : · · · · · ·</button>
+        <button class="chansel tnc-default" id="ch3">3 : · · · · · ·</button>
+        <button class="chansel tnc-default" id="ch4">4 : · · · · · ·</button>
+        <button class="chansel tnc-default" id="ch5">5 : · · · · · ·</button>
+        <button class="chansel tnc-default" id="ch6">6 : · · · · · ·</button>
+        <button class="chansel tnc-default" id="ch7">7 : · · · · · ·</button>
+        <button class="chansel tnc-default" id="ch8">8 : · · · · · ·</button>
+        <button class="chansel tnc-default" id="ch9">9 : · · · · · ·</button>
+        <button class="chansel tnc-default" id="ch10">10 : · · · · · ·</button>
+      </div>
+      <div class="clock">
+        <canvas id="localclock"></canvas>
+      </div>
+    </div>
+    <div class="chat-title">
+        <table id="montable"><tr><td rowspan="2" style="width:21%;"><h2> Monitor</h2></td><td style="width:26%;">Monitor Mode : <span id="infmon"></span></td><td style="width:28%;">Buffer : <span id="infbuf"></span> (App <span id="imem"></span>MB)</td><td rowspan="2" style="width: 200px;"><h2>mHeard</h2></td></tr><tr><td>Packets not yet displayed : <span id="infpacn"></span></td><td>Global Mycall : <span id="infmyc"></span></td></tr></table>
+        <table id="chntable" style="display:none"><tr><td rowspan="2" id="chnnum" style="width:21%;"><h2>Channel</h2></td><td>My Call : <span id="chnmyc"></span></td><td colspan="2">Status : <span id="chn_f"></span></td><td>Buffer : <span id="chnbuf"></span> (App <span id="cmem"></span>MB)</td></tr><tr><td>Not displayed : <span id="chn_b"></span></td><td>Not send : <span id="chn_c"></span></td><td>Tries : <span id="chn_e"></span></td><td>Unacknowledged : <span id="chn_d"></span></td></tr></table>
+    </div>
+    <div class="messages">
+      <div class="messages-content"></div>
+      <div class="side-content"></div>
+      <div class="leds"><div id="led-red" class="led-red"></div><div id="led-green" class="led-green"></div></div>
+    </div>
+
+    <div class="map" style="display: none">
+        <iframe id="mapiframe" src="map.html"></iframe>
+    </div>
+
+    <div class="tableheard" style="display: none">
+      <div class="mheard-content"></div>
+    </div>
+
+
+    <div class="action-box">
+      <textarea class="action-box-input" type="text" placeholder="Type message..."></textarea>
+      <button class="action-box-submit" type="submit" onclick="insertMessage()"><img src="broadcast.png" height="50%" width="50%"></button>
+    </div>
+  </div>
+
+  <div class="buttons-menu">
+    <button class="chansel tnc-default" id="mnu1">CONNECT</button>
+    <button class="chansel tnc-default" id="mnu2">EDIT</button>
+    <button class="chansel tnc-default" id="mnu3">SETUP</button>
+    <button class="chansel tnc-default tnc-active" id="mnu4">MONITOR</button>
+    <button class="chansel tnc-default" id="mnu5">MHEARD</button>
+    <button class="chansel tnc-default" id="mnu6">MAP</button>
+  </div>
+</body>
+
+<script src="jquery.mCustomScrollbar.concat.min.js"></script>
+<script src="libs/coolclock.js"></script>
+<script src="libs/moreskins.js"></script>
+<script>
+(function() {
+//  var siteWidth = 1920;
+//  var scale = screen.width / siteWidth * 1.5;
+//  if(scale > 1) scale = 1;
+//  document.querySelector('meta[name="viewport"]').setAttribute('content', 'width=device-width, initial-scale='+scale+'');
+
+    var isTyping, messages, uctTimer;
+
+    messages = $(".messages-content");
+    mheards = $(".mheard-content");
+
+    isTyping = true;
+    uctTimer = null;
+    const audio = new Audio("2.mp3");
+    var wsUri = "ws://APRS:7712/";
+    var socket = new WebSocket(wsUri);
+    var bulkdone = 0;
+    $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
+
+    var wasallnone = 1;
+    var mychat;
+    var activechannel = 0;
+    var typing2;
+    var disc = 0;
+    var mheard = {};
+    setInterval(mheardshow, 60000);
+
+    window.userTypingClear = function() {
+        return uctTimer = setTimeout(function() {
+            $(".message.personal.typing").remove();
+                return isTyping = true;
+        }, 3500);
+    };
+
+    window.updateScrollbar = function() {
+        if(messages.css('display') != 'none') {
+            return messages.mCustomScrollbar("update").mCustomScrollbar('scrollTo', 'bottom', {
+                scrollInertia: 5,
+                timeout: 0
+            });
+        } else {
+            return mheards.mCustomScrollbar("update").mCustomScrollbar('scrollTo', 'top', {
+                scrollInertia: 5,
+                timeout: 0
+            });
+        }
+    };
+
+    window.insertMessage = function() {
+        var msg, msgText;
+        msgText = $(".action-box-input").val();
+        if ($.trim(msgText) === "") {
+            return false;
+        }
+        $(".action-box-input").val(null);
+        $(".message.personal.typing").remove();
+        isTyping = false;
+        var dowehave = $('.message_' + activechannel).last();
+        if(dowehave.length > 0 && dowehave.hasClass('active')) {
+            dowehave.removeClass('active');
+        }
+        mychat = msgText;
+        socket.send(msgText);
+        $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
+        updateScrollbar();
+        userTypingClear();
+    };
+/*
+    $(window).on('focus', function() {
+        updateScrollbar();
+    });
+*/
+    $(window).on('keydown', function(e) {
+        if (e.which === 13) {
+            insertMessage();
+            return false;
+        }
+    });
+
+    $(window).load(function() {
+        mheards.mCustomScrollbar();
+        messages.mCustomScrollbar();
+    });
+
+
+
+    $(".action-box-input").on("keydown", function(e) {
+        var typing;
+        if ($(".action-box-input") !== "" && isTyping === true && e.which !== 13) {
+            typing = $("<div>").append("<span>").addClass("message personal typing");
+            typing.appendTo($('.mCSB_container'));
+            updateScrollbar();
+            isTyping = false;
+            return userTypingClear();
+        }
+    });
+
+    socket.onopen = function (e) {
+        // $('#mCSB_1_container').clone().prop('id', 'mSCB_2_container').after('#mCSB_1_container');
+
+        $(".led-red").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
+        console.log("socket opened", e);
+        if(disc == 0) {
+            $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
+        }
+        disc += 1;
+    };
+
+    socket.onerror = function (e) {
+        console.error(e);
+    };
+
+    socket.onclose = function (e) {
+        console.log("socket closed", e);
+        bulkdone = 0;
+        $(".theerror").html('<br>Connection to server<br>was closed');
+        $('.mCSB_container').html('');
+        $(".warning").show();
+        setTimeout((function() {
+            $(".warning").hide();
+            var socket2 = new WebSocket(wsUri);
+            socket2.onopen    = socket.onopen;
+            socket2.onmessage = socket.onmessage;
+            socket2.onclose   = socket.onclose;
+            socket2.onerror   = socket.onerror;
+            socket = socket2;
+            $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
+        }).bind(this), 7000);
+    };
+
+    socket.onmessage = function (e) {
+        var tmp = JSON.parse(e.data);
+        var date = new Date(tmp.time * 1000);
+        var hours = "0" + date.getHours();
+        var minutes = "0" + date.getMinutes();
+        var seconds = "0" + date.getSeconds();
+        if(bulkdone == 1) { $(".led-red").fadeTo(111,1.0).delay(250).fadeTo(111,0.12); }
+
+        if(tmp.cmd == 'cmd1') {
+            if(activechannel == 0) {
+                if(tmp.data.substr(0,2) == '@B') $('#infbuf').text(tmp.data.substr(3));
+                if(tmp.data.substr(0,4) == '@MEM') $('#imem').text(Math.round(tmp.data.substr(5) / 1024 / 1024 * 100) / 100);
+                if(tmp.data.substr(0,1) == 'L') $('#infpacn').text(tmp.data.substr(4));
+                if(tmp.data.substr(0,1) == 'M') $('#infmon').text(tmp.data.substr(2));
+                if(tmp.data.substr(0,1) == 'I') $('#infmyc').text(tmp.data.substr(2));
+            } else {
+                if(tmp.data.substr(0,2) == '@B') $('#chnbuf').text(tmp.data.substr(3));
+                if(tmp.data.substr(0,4) == '@MEM') $('#cmem').text(Math.round(tmp.data.substr(5) / 1024 / 1024 * 100) / 100);
+                if(tmp.data.substr(0,1) == 'I') $('#chnmyc').text(tmp.data.substr(2));
+                if(tmp.data.substr(0,1) == 'L') {
+                    var array = tmp.data.split(" ");
+                    $('#chn_b').text(array[1]);
+                    $('#chn_c').text(array[2]);
+                    $('#chn_d').text(array[3]);
+                    $('#chn_e').text(array[4]);
+                    if(array[5] == 0 ) $('#chn_f').text('Disconnected');
+                    else if(array[5] == 1 ) $('#chn_f').text('Link Setup');
+                    else if(array[5] == 3 ) $('#chn_f').text('Disconnect Request');
+                    else if(array[5] == 4 ) $('#chn_f').text('Information Transfer');
+                    else if(array[5] == 5 ) $('#chn_f').text('Reject Frame Sent');
+                    else if(array[5] == 6 ) $('#chn_f').text('Waiting Acknowledgement');
+                    else if(array[5] == 7 ) $('#chn_f').text('Device Busy');
+                    else if(array[5] == 8 ) $('#chn_f').text('Remote Device Busy');
+                    else if(array[5] == 9 ) $('#chn_f').text('Both Devices Busy');
+                    else if(array[5] == 10) $('#chn_f').text('Device Busy');
+                    else if(array[5] == 11) $('#chn_f').text('Remote Busy');
+                    else if(array[5] == 12) $('#chn_f').text('Both Devices Busy');
+                    else if(array[5] == 13) $('#chn_f').text('Device Busy');
+                    else if(array[5] == 14) $('#chn_f').text('Remote Busy');
+                    else if(array[5] == 15) $('#chn_f').text('Both Devices Busy');
+                    else $('#chn_f').text('Unkown(' + array[5] + ')');
+                }
+            }
+            if(bulkdone == 0) updateScrollbar();
+            bulkdone = 1;
+        } else if(tmp.cmd == 'cmd2') {
+            /*
+                Failure, message follows
+            */
+            console.log(tmp.data);
+            $(".theerror").html('TNC<br>' + tmp.data);
+            $(".warning").show();
+            $(".warning").hide().slideDown().delay(5000).fadeOut();
+        } else if(tmp.cmd == 'cmd3') {
+            /*
+                List of active and inactive channels
+            */
+            var chnz = JSON.parse(tmp.data);
+            if(chnz[1].length) {
+                var active;
+                if(chnz[1]== 'None') $("#ch1").html("1 : · · · · · ·").css({ "color": '#000'});  else { $("#ch1").html('1 : ' + chnz[1]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[2]== 'None') $("#ch2").html("2 : · · · · · ·").css({ "color": '#000'});  else { $("#ch2").html('2 : ' + chnz[2]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[3]== 'None') $("#ch3").html("3 : · · · · · ·").css({ "color": '#000'});  else { $("#ch3").html('3 : ' + chnz[3]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[4]== 'None') $("#ch4").html("4 : · · · · · ·").css({ "color": '#000'});  else { $("#ch4").html('4 : ' + chnz[4]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[5]== 'None') $("#ch5").html("5 : · · · · · ·").css({ "color": '#000'});  else { $("#ch5").html('5 : ' + chnz[5]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[6]== 'None') $("#ch6").html("6 : · · · · · ·").css({ "color": '#000'});  else { $("#ch6").html('6 : ' + chnz[6]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[7]== 'None') $("#ch7").html("7 : · · · · · ·").css({ "color": '#000'});  else { $("#ch7").html('7 : ' + chnz[7]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[8]== 'None') $("#ch8").html("8 : · · · · · ·").css({ "color": '#000'});  else { $("#ch8").html('8 : ' + chnz[8]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[9]== 'None') $("#ch9").html("9 : · · · · · ·").css({ "color": '#000'});  else { $("#ch9").html('9 : ' + chnz[9]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[10]=='None') $("#ch10").html("10 : · · · · · ·").css({ "color": '#000'}); else { $("#ch10").html('10 : ' + chnz[10]).css({ "color": '#99ffb8'}); active = 1; }
+                if(active) {
+                    if(wasallnone == 1) { audio.play(); wasallnone = 0; }
+                } else wasallnone = 1;
+            }
+        } else if(tmp.cmd == 'cmd100') {
+            /*
+                Update mHeard Data
+            */
+            mheard = JSON.parse(tmp.data);
+            mheardshow();
+        } else {
+            /*
+                Lets deal with chats
+                cmd4 : Monitor header/no info
+                cmd5 : Monitor header/info
+                chat : Connected information
+                warn : Monitor information
+            */
+            var channel = tmp.chan;
+            // if there more data we need like add it to buffer and display it once done, this only needed for channel 1 and above
+
+            var formattedTime = '';
+            var endtxt = '';
+            if     (tmp.cmd == 'warn') { formattedTime += '<h1>'; endtxt += '</h1>'; }
+            else if(tmp.cmd == 'info') { formattedTime += '<h5>'; endtxt += '</h5>'; }
+            else if(tmp.cmd == 'chat') { formattedTime += '<h4>'; endtxt += '<br></h4>'; }
+            else if(tmp.cmd == 'echo') { formattedTime += '<h3>'; endtxt += '<br></h3>'; }
+
+            // Lets UnEscape some shiz; even tough this is a bad way and slow way of dooing it
+            var chat = tmp.data;
+            var lookup = {'&': "&amp;", '"': "&quot;", '\'': "&apos;", '<': "&lt;", '>': "&gt;", ' ': "&nbsp;"};
+            chat     = chat.replace( /[&"'<> ]/g, c => lookup[c] );
+            if(tmp.cmd == 'cmd5' || tmp.cmd == 'cmd4') {
+                chat = chat.replace('fm&nbsp;', 'fm&nbsp;<h5>');
+                chat = chat.replace('&nbsp;to', '</h5>&nbsp;to<h6>');
+                chat = chat.replace('&nbsp;ctl', '</h6>&nbsp;ctl');
+            }
+            chat     = chat.replace(/(\r\n|\n|\r)/gm,'<br>');
+            var dowehave
+            var check;
+
+            if(chat.includes('CONNECTED')) {
+                dowehave = $('.message_' + activechannel).last();
+                if(dowehave.length > 0 && dowehave.hasClass('active')) {
+                    dowehave.removeClass('active');
+                }
+            }
+
+            dowehave = $('.message_' + channel).last();
+            if(dowehave.length > 0 && dowehave.hasClass('active')) {
+                if(channel == 0) {
+                    dowehave.removeClass("active");
+                    dowehave.append(formattedTime + '<br>' + chat + endtxt);
+                } else dowehave.append(formattedTime + chat + endtxt);
+
+                // dowehave.find('.timestamp').text(hours.substr(-2) + ':' + minutes.substr(-2)); // need test this
+            } else {
+                msg = $("<div id='message' style='display: none;'>").addClass("message_" + channel); //.addClass("active");
+                check = 1;
+                if(channel == 0) check = 0;
+                if(chat.includes('CONNECTED')) check = 0;
+                if(tmp.data == mychat) check = 0;
+                if(tmp.cmd == 'cmd5')  check = 1;
+                if(tmp.cmd == 'echo')  check = 0;
+                if(tmp.cmd == 'info')  check = 0;
+
+                if(check == 1 && bulkdone == 1) msg.addClass("active");
+
+                msg.html(formattedTime + chat + endtxt);
+
+                timestamp = $("<div>").addClass("timestamp");
+                timestamp.text(hours.substr(-2) + ':' + minutes.substr(-2) + ':' + seconds.substr(-2));
+                timestamp.appendTo(msg);
+
+                msg.appendTo($('#mCSB_2_container'));
+
+                if(channel != activechannel && bulkdone == 1) $('#ch' + channel).addClass('tnc-news');
+            }
+
+            for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = ''; // shows message_0
+
+            if(bulkdone == 1) updateScrollbar();
+        }
+    };
+
+    var buttons = document.querySelectorAll('.chansel');
+    for (var i=0; i < buttons.length; i++) {
+        buttons[i].addEventListener('click', handlebutton);
+    }
+
+    function handlebutton(event) {
+        if((event.target.id).substring(0,2) === 'ch') {
+            var ch = (event.target.id).substring(2);
+            for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = 'none';
+
+            $('.chansel').removeClass('tnc-active').addClass('tnc-default');
+
+            if(activechannel == ch) { activechannel = 0; $('#mnu4').addClass('tnc-active'); }
+            else { activechannel = ch; $(this).toggleClass('tnc-active tnc-default'); }
+            socket.send('@' + activechannel);
+            $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
+            for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = '';
+            updateScrollbar();
+
+            $('#chnnum').html('<h2> Channel ' + activechannel + '</h2>');
+
+            if(activechannel > 0) { $('#montable').hide(); $('#chntable').show(); $('#ch' + activechannel).removeClass('tnc-news'); }
+            else { $('#montable').show(); $('#chntable').hide(); }
+
+            $(".messages").show();
+            $(".tableheard").hide();
+            $(".map").hide();
+        } else {
+            // console.log(event.target.id);
+            $('.chansel').removeClass('tnc-active').addClass('tnc-default');
+            $(event.target).addClass('tnc-active');
+
+            if(event.target.id == 'mnu6') {
+                $(".map").show();
+                $(".messages").hide();
+                $(".tableheard").hide();
+            }
+            if(event.target.id == 'mnu5') {
+                $(".tableheard").show();
+                $(".messages").hide();
+                $(".map").hide();
+            }
+            if(event.target.id == 'mnu4') {
+                if(activechannel != 0) {
+                    activechannel = 0;
+                    socket.send('@' + activechannel);
+                    for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = '';
+                }
+                $('#mnu4').addClass('tnc-active');
+                $(".tableheard").hide();
+                $(".messages").show();
+                $('#montable').show();
+                $('#chntable').hide();
+                $(".map").hide();
+                updateScrollbar();
+            }
+        }
+    }
+
+    function isEmpty(obj) {
+        return Object.keys(obj).length === 0;
+    }
+
+    function ezDate(d) {
+        var temp = 0, val;
+        var ts = Math.floor(new Date().getTime() / 1000) - d;
+        var clr = '<font color=#ff9999>';
+
+        if     (ts>31536000) { temp = Math.round(ts/31536000,0); val = temp + ' year'; }
+        else if(ts>2419200) { temp = Math.round(ts/2419200,0); val = temp + ' month'; }
+        else if(ts>604800) { temp = Math.round(ts/604800,0); val = temp + ' week'; }
+        else if(ts>86400) { temp = Math.round(ts/86400,0); val = temp + ' day'; }
+        else if(ts>3600) { temp = Math.round(ts/3600,0); val =  temp + ' hour'; clr = '<font color=#ffe499>'; }
+        else if(ts>60) { temp = Math.round(ts/60,0); val = temp + ' minute'; clr = '<font color=#99ffb8>'; }
+        else { temp = -1; val = 'just now'; clr = '<font color=#99ffb8>'; }
+
+        if(temp > 1) val += 's';
+        return clr + val + '</font>';
+    }
+
+    function mheardshow() {
+        if(Object.keys(mheard).length) {
+            var output = '';
+            var sortable = [];
+            var obj = new Object();
+            var tablerow = '<table class="mhtable">';
+            tablerow += '<tr><th>Callsign</th><th>Sysop</th><th>Locator</th><th>First Time Logged</th><th>Last Seen</th><th>Seen</th><th>Last Connect</th><th>Cons</th></tr>';
+            var tmpname;
+            var tn = Math.floor(new Date().getTime() / 1000);
+            var date;
+            var addon;
+            for(var k in mheard) {
+                sortable.push({'name': k, 'time': mheard[k][3]});
+                if(mheard[k][1] != '') obj[k] = mheard[k][1];
+            }
+            sortable.sort(function(a, b){ return b.time - a.time; });
+            for(var k in sortable) {
+                tmpname = sortable[k].name;
+
+                addon = ' style="background: #24000061;"'
+                if((tn - sortable[k].time) < 43200) {
+                    output += '<div id="infomsg">' + tmpname + '<div class="tmz">' + ezDate(sortable[k].time) + '</div></div>';
+                    if((tn - sortable[k].time) < 3600) addon = ' style="background: #002c0061;"'; else addon = '';
+                }
+
+                tablerow += '<tr'+addon+'><td><h3>' + tmpname + '</h3></td>';
+                tablerow += '<td><h3>' + mheard[tmpname][0] + '</h3></td>';
+                tablerow += '<td>' + mheard[tmpname][1] + '</td>';
+                date = new Date(mheard[tmpname][2] * 1000);
+                tablerow += '<td class="dtm">' + date.toLocaleDateString("en-US", {weekday: "short", year: "numeric", month: "short", day: "numeric", hour12: false, hour: "2-digit", minute: "2-digit"})  + '</td>';
+                date = new Date(mheard[tmpname][3] * 1000);
+                tablerow += '<td class="dtm">' + date.toLocaleDateString("en-US", {weekday: "short", year: "numeric", month: "short", day: "numeric", hour12: false, hour: "2-digit", minute: "2-digit"})  + '</td>';
+                tablerow += '<td>' + nFormatter(mheard[tmpname][4],1) + '</td>';
+                if(mheard[tmpname][6] != 0) {
+                    date = new Date(mheard[tmpname][6] * 1000);
+                    tablerow += '<td class="dtm">' + date.toLocaleDateString("en-US", {weekday: "short", year: "numeric", month: "short", day: "numeric", hour12: false, hour: "2-digit", minute: "2-digit"})  + '</td>';
+                } else { tablerow += '<td>-</td>'; }
+                tablerow += '<td>' + nFormatter(mheard[tmpname][7],1) + '</td>';
+                tablerow += '</tr>';
+            }
+            $(".side-content").html(output);
+            tablerow += '</table>';
+            // $(".mheard-content").html(tablerow);
+            $('#mCSB_1_container').html(tablerow);
+
+            // Lets send it to iframe window as well to add to map
+            window.document.getElementById("mapiframe").contentWindow.postMessage(JSON.stringify(obj), '*');
+        }
+    }
+
+    function nFormatter(num, digits) {
+        const lookup = [
+            { value: 1, symbol: "" },
+            { value: 1e3, symbol: "k" },
+            { value: 1e6, symbol: "M" },
+            { value: 1e9, symbol: "G" },
+            { value: 1e12, symbol: "T" },
+            { value: 1e15, symbol: "P" },
+            { value: 1e18, symbol: "E" }
+        ];
+        const rx = /\.0+$|(\.[0-9]*[1-9])0+$/;
+        var item = lookup.slice().reverse().find(function(item) {
+            return num >= item.value;
+        });
+        return item ? (num / item.value).toFixed(digits).replace(rx, "$1") + item.symbol : "0";
+    }
+
+    new CoolClock({
+        canvasId:       "localclock",
+        skinId:         "classic",
+        displayRadius:  60,
+        showSecondHand: true,
+        gmtOffset:      "", // this has to be a string!
+        showDigital:    false,
+        logClock:       false,
+        logClockRev:    false
+    });
+}).call(this);
+</script>
+</html>
