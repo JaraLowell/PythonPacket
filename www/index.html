@@ -105,7 +105,7 @@
     isTyping = true;
     uctTimer = null;
     const audio = new Audio("2.mp3");
-    var wsUri = "ws://APRS:7712/";
+    var wsUri = "ws://127.0.0.1:7712/";
     var socket = new WebSocket(wsUri);
     var bulkdone = 0;
     $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
