@@ -721,27 +721,27 @@ function sendinit() {
     } else if(init <= 19) {
         var Defs = {
         // Initialisation
-        1 : 'G 0',
-        2 : 'C CQ',
-        3 : 'Y 10',
-        4 : 'M IUS',
-        5 : 'U 0',
-        6 : 'K YY/MM/DD',
-        7 : 'K HH:MM:SS',
-        8 : '@V 0',
-        // Settings File
-        9 : 'K 0',
-        10: 'O 3',
-        11: 'P 62',
-        12: 'T 62',
-        13: 'W 10',
-        14: 'R 1',
-        // All = UISC
-        15: 'M UISC+',
-        16: 'C CQ',
-        17: 'X 1',
-        18: 'N 6',
-        19: 'I NL0MSK',
+        1 : 'G 0',         // Get information (host mode)
+        2 : 'C CQ',        // Connect path CQ
+        3 : 'Y 10',        // Maximum connections (default 4)
+        4 : 'M IUS',       // Monitor Mode (default IU)
+        5 : 'U 0',         // Unattended mode disabled
+        // Some firmware's do not seem to supprt K and some even use it for Calibration (TARP)
+        6 : 'K YY/MM/DD',  // Set Date
+        7 : 'K HH:MM:SS',  // Set Time
+        8 : 'K 0',         // disable stamp
+        9 : '@V 0',        // Callsign validation disabled
+        10: 'O 3',         // Number of outstanding I frames (default 4)
+        // P T and W more or less come down to your radio on how fats it can send, and see the msg end after recieving
+        11: 'P 62',        // P-persistence value (default 64)
+        12: 'T 62',        // Transmitter delay in ms (default 30)
+        13: 'W 10',        // Slot time interval in ms (default 10)
+        14: 'R 1',         // Repeater mode enabled
+        15: 'M UISC+',     // Monitor Mode for us UISC+ for all
+        16: 'C CQ',        // Connect path CQ
+        17: 'X 1',         // Transmitter PTT enabled
+        18: 'N 6',         // Number of re tries (default 10)
+        19: 'I NL0MSK',    // source callsign
 
 /*
         // Set up Channels
