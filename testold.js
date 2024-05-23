@@ -85,8 +85,10 @@ if (fs.existsSync('mheard.log'))  { jsonString = fs.readFileSync('mheard.log', '
 process.on('SIGINT', function() {
     Logger.warn("Closing TNC...");
     clearInterval(myInterval);
+    port.write(Buffer.from([0x00, 0x01, 0x01, 0x40, 0x47])); // ^@G
     port.write(Buffer.from([0x00, 0x01, 0x01, 0x4d, 0x4e])); // ^MN
     port.write(Buffer.from(chan_s('U1 PC is er even niet: Type uw call @ box en boodschap in.',0)));
+    port.write(Buffer.from([0x00, 0x01, 0x01, 0x4B, 0x32])); // ^K2
     port.write(Buffer.from([0x00, 0x01, 0x05, 0x4a, 0x48, 0x4f, 0x53, 0x54, 0x30])); // ^JHOST0
     port.close();
 
