@@ -88,16 +88,17 @@ process.on('SIGINT', function() {
 
     port.drain();
 
-    port.write(Buffer.from([0x00, 0x01, 0x01, 0x4d, 0x4e])); // ^MN
-    port.write(Buffer.from([0x00, 0x01, 0x06, 0x55, 0x31, 0x41, 0x77, 0x61, 0x79, 0x21])); // U1 Away!
-    port.write(Buffer.from([0x00, 0x01, 0x01, 0x4b, 0x32])); // ^K2
+    // This is what should happen if you press X or close rather then ctrl + c
+    // port.write(Buffer.from([0x00, 0x01, 0x01, 0x4d, 0x4e])); // ^MN
+    // port.write(Buffer.from([0x00, 0x01, 0x06, 0x55, 0x31, 0x41, 0x77, 0x61, 0x79, 0x21])); // U1 Away!
+    // port.write(Buffer.from([0x00, 0x01, 0x01, 0x4b, 0x32])); // ^K2
     port.write(Buffer.from([0x00, 0x01, 0x05, 0x4a, 0x48, 0x4f, 0x53, 0x54, 0x30])); // ^JHOST0
 
     fs.writeFileSync('mheard.log', JSON.stringify(mheard), 'utf-8');
     fs.writeFileSync('monitor.log', JSON.stringify(monitorbuffer), 'utf-8');
     fs.writeFileSync('channel.log', JSON.stringify(channelbuffers), 'utf-8');
 
-    // port.close();
+    port.close();
     process.exit(1);
 });
 
