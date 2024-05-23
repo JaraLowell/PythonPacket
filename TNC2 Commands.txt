@@ -1,0 +1,204 @@
+The Firmware (TF) is a AX.25 packet radio software for TNC2 compatible Terminal Node Controllers.
+
+ESC A [0|1]
+    Automatic insertion of LINEFEED-character <LF> after CARRIAGE RETURN <CR> (1=Yes, 0=No).
+    Default: 1
+
+ESC B [<n>]
+    If during this time no poll from the DAMA-master is received, the DAMA-mode is switched off. B 0 disables DAMA generally, although not needed, because DAMA is detected automatically and if no DAMA-master is active, the DAMA-mode is off. The display is in the following format: "initial value (actual value)".
+    Example: "120 (93)"
+    Default: 120
+
+ESC C [Call]
+    Starts a link setup (connect) on the current channel. If you specify a digipeater path no 'v' or 'via' is needed. While on channel 0 this command sets the destination of UI-frames.
+
+ESC D
+    If a connection is active on the current channel, it will be disconneted. If there are any unacknowledged frames left, the disconnect is delayed until the last frame is acknowledged. A direct disconnect can be forced with a second 'D'-command.
+    If the 'D'-command is entered during link setup or during disconnect, the TNC immediately returns to disconnected state and sends a DISC-frame to cancel transmissions of the remote station, if the TNC was not able to decode frames of the remote station.
+
+    If the 'D'-command is entered in disconnect state, all parameters are initialized to the default values stored in channel 0.
+
+ESC E [0|1]
+    This command controls the ECHO of characters typed. 1=Yes, 0=No.
+    Default: 1
+
+ESC F [<n>]
+    FRACK is the time between the transmission of an information packet and the acknowledgement of the remote station.
+    Values >15 will be the initial round trip time (IRTT) and the unit is 10 milliseconds.
+
+    For values <16 the unit is seconds and the value will be translated to the IRTT by multiplying it with 100 and dividing it through parameter A3.
+    Default: 250
+
+ESC G [0|1]
+    Not applicable in terminal mode, used for polling of data in hostmode.
+
+ESC H [<n>]
+    Configuration of the heard list.
+    Examples:
+
+    H	display of heard list
+    H 0	disable update of heard list
+    H 1	enable update of heard list
+    H 2	erase heard list
+    H n	Set maximum number of calls in heard list (n > 2)
+    The last heard calls will be stored, old entries will be overwritten. The heard list is resident, it is not deleted by reset or switching off.
+
+    CAUTION: If the heard list contains many entries, a restart may take some time because of internal buffer linking during startup.
+    Default: 0
+
+ESC I [Call]
+    Input of own callsign (MYCALL). The default value in the EPROM is all spaces. After disconnect the callsign of channel 0 is copied to the actual channel.
+    CAUTION: Without a callsign the TNC will not transmit anything.
+
+ESC JHOST[0|1]
+    This command switches between terminal- and hostmode. The hostmode is used by special programs.
+
+ESC K [<n>]
+    This command controls the clock, calendar and the stamp- function.
+    Examples:
+
+    K	display stamp and date/time
+    K 0	disable stamp
+    K 1	enable stamp for status messages
+    K 2	enable stamp for status messages and for monitor frames.
+    K 20.02.88	set date, european format
+    K 02/20/88	set date, american format
+    K 17:36:00	set time
+    Default: 0
+
+ESC L [0..10]
+    This command shows the link state of one or of all (no parameter specified) channels. Following information will be displayed: connect-path (callsign and digipeater path), number of received frames, number of unsent frames, number of unacknowledged frames and the retry counter. The currently activated channel will be marked with a '+'.
+
+ESC M [IUSCN+-]
+    This command controls the display of monitor frames. The parameters specifiy the type of frames which shall be displayed.
+    Examples:
+
+    N	no frame display
+    I	information-frames
+    U	unproto frames
+    S	supervisory frames
+    C	display during active connection
+    +	<list of up to 8 calls>: only frames of these stations
+    -	<list of up to 8 calls>: no frames of these stations
+    A combination of '+' and '-' is not possible. If specified '+' or '-' must be the last parameter before the callsign list. Without a callsign list, the current list is deleted.
+    Default: UI
+
+ESC N [0..127]
+    Maximum number of retries (0 means try forever). This value can be changed for each channel independently, but will be restored to the value of channel 0 after reset or disconnect.
+    Default: 10
+
+ESC O [1..7]
+    Maximum number of outstanding packets (MAXFRAME). This value can be changed for each channel independently, but will be restored to the value of channel 0 after reset or disconnect.
+    Default: 2
+
+ESC P [0..255]
+    Value for p-persistance algorithm. In DAMA-mode a value of 255 will be used.
+    Default: 32
+
+ESC QRES
+    Cold boot, uses default values stored in EPROM.
+
+ESC R [0|1]
+    This command controls the digipeat function.
+    1=Yes, 0:No.
+    Default: 1
+
+ESC S [0..10]
+    Activation of a channel (0= unproto channel)
+    Default: 0
+
+ESC T [0..127]
+    Delay between start of transmission and start of data (TXDELAY). The unit is 10 ms. Please adjust to the lowest possible value.
+    Default: 25
+
+ESC U [0|1|2]
+    This command controls the connect text feature (CTEXT). This text is sent if a remote station connects.
+    The text will remain stored even if the ctext mode is changed. If mode 2 is selected and the terminal mode is active, a packet received with '//Q' at the beginning will disconnect the remote station. In hostmode this function is disabled.
+
+    Examples:
+
+    U 1 Text	enter CTEXT
+    U 1	CTEXT will be sent
+    U 2 (text)	CTEXT and //Quit-function!
+    U 0	disable CTEXT
+    U	display CTEXT
+    Default: 0
+
+ESC V
+    Displays the actual version of the software
+
+ESC W [0..127]
+    Value of the slot time of the p-persitance algorithm. The unit is 10ms.
+    Default: 10
+
+ESC X [0|1]
+    This command allows to disable the transmitter.
+    0= disable, 1= enable.
+    Default: 1
+
+ESC Y [0..10]
+    Number of channel which will accept an incoming connect request. The display format is "max. channels (used channels)". Only works correct if the SSID are the same on every channel.
+    Example: "4 (0)"
+    Default: 4
+
+ESC Z [0..3]
+    With this command flow control and XON/XOFF-protocol can be activated.
+    If flow control is activated no charcater is sent to the terminal during data input.
+
+    If it is disabled all received data is sent immediately. If XON/XOFF protocol is activated data output can be stopped using <CTL-S> and continued with <CTL-Q>.
+
+    Examples:
+
+    Value	flow	Xon/off
+    0	off	off
+    1	on	off
+    2	off	on
+    3	on	on
+    Default: 3
+
+ESC @A1 [<n>]
+    SRTT calculation: change/display value for a1.
+    Default: 7
+
+ESC @A2 [<n>]
+    SRTT calculation: change/display value for a2.
+    Default: 15
+
+ESC @A3 [<n>]
+    SRTT calculation: change/display value for a3.
+    Default: 3
+
+ESC @B
+    Display of available TNC-buffers.
+
+ESC @D [0|1]
+    Disable/enable full duplex mode.
+    Default: 0
+
+ESC @I [<n>]
+    Change/display framelength for I-polling.
+    Default: 60
+
+ESC @K
+    Switch to KISS-mode.
+
+ESC @M [0|1]
+    7-bit oder 8-bit terminal mode.
+    In 7-bit mode a control code conversion is active, too which will display control codes with a leading '^'.
+
+    In 8-bit mode all control codes are sent without translation. CAUTION: disable XON/XOFF in your terminal-program, otherwise a XOFF will stop the data flow.
+
+    Although 8-bit mode is the default mode the real advantage of TheFirmware is the *WA8DED HOSTMODE*. It is recommended to use it together with a special terminalprogram instead of using the terminal mode for binary transfers. 0=7-Bit; 1=8-Bit (only terminal-mode)
+    Default: 1
+
+ESC @T2 [<n>]
+    Time between the receiving of a packet and the transmission of the acknowledgement (timer T2).
+    Default: 150
+
+ESC @T3 [<n>]
+    Time after which the connection is tested, if no data transfer was done (still alive timer, timer T3).
+    Default: 18000
+
+ESC @V [0|1]
+    Test if entered callsign is a valid callsign (1=Yes, 0=No).
+    Default: 0
