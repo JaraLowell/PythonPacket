@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <title>WebSocket client test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8">
+    <style>
+    body {
+        /* margin: 0px; */
+        /* padding: 0px; */
+        width: 100%;
+        overflow-x: hidden;
+        background-color: #242424;
+        font-family: monospace;
+        color: #999;
+        font-size: 20px;
+    }
+    .container {
+        position: absolute;
+        width: 99%;
+        height: 99%;
+    }
+    #chatbox {
+        overflow:   none;
+        position:   relative;
+        width:      100%;
+        height:     100%;
+        bottom:     32px;
+    }
+    #chatmessages
+    {
+        overflow:   auto;
+        position:   absolute;
+        bottom:     0;
+        width:      100%;
+        /* max-height: 200px; */
+    }
+    #chatmessages div {
+        border:1px solid #3a3a3a;
+        border-radius: 5px;
+        margin: 2px;
+        padding: 2px;
+    }
+    #inputarea {
+        position:absolute;
+        height:20px;
+        bottom:10px;
+        left:0;
+        display:block;
+        width:100%
+    }
+    </style>
+  </head>
+  <body>
+  <div class="container">
+    <div id="chatbox">
+        <div id="chatmessages">
+        </div>
+    </div>
+    <div id="inputarea">
+      <input type="text" style="max-width:unset;width:100%;max-width:100%" id="MessageField" placeholder="type message and press enter" />
+    </div>
+  </div>
+  </body>
+  <script src="//code.jquery.com/jquery-1.11.3.min.js"></script>
+  <script>
+    var wsUri = "ws://192.168.178.66:8765/"; // 7712
+    var socket = new WebSocket(wsUri);
+    socket.onopen = e => {
+        console.log("socket opened", e);
+    };
+
+    socket.onclose = function (e) {
+        console.log("socket closed", e);
+    };
+
+    socket.onmessage = function (e) {
+        var tmp = JSON.parse(e.data);
+
+        var date = new Date(tmp.time * 1000);
+        var hours = "0" + date.getHours();
+        var minutes = "0" + date.getMinutes();
+        var seconds = "0" + date.getSeconds();
+
+        // Will display time in 10:30:23 format
+        var formattedTime = '[' + hours.substr(-2) + ':' + minutes.substr(-2) + ':' + seconds.substr(-2) + '] ';
+        var endtxt = '<br>';
+        if(tmp.cmd == 'warn') { formattedTime += '<font color=gold>'; endtxt += '</font>'; }
+        if(tmp.cmd == 'chat') { formattedTime += '<font color=green>'; endtxt += '</font>'; }
+
+        $('#chatmessages').append(formattedTime + tmp.data + endtxt);
+    };
+
+    socket.onerror = function (e) {
+        console.error(e);
+    };
+
+    $('#MessageField').keypress(function (e) {
+        if (e.which != 13) {
+            return;
+        }
+        e.preventDefault();
+
+        var message = $('#MessageField').val();
+        socket.send(message);
+
+        $('#MessageField').val('');
+    });
+
+    //$('#chatmessages').scrollTop($('#chatmessages')[0].scrollHeight);
+  </script>
+</html>
