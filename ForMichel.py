@@ -5,10 +5,14 @@ import sys
 import asyncio
 import functools
 import websockets
+# Next two are for the radio side of things
+import json
+# text = codecs.decode(data, 'cp850').replace('\r', '\n')
+import codecs
 from http import HTTPStatus
 
 MYPORT = 8765
-MIME_TYPES = {"html": "text/html", "js": "text/javascript", "css": "text/css"}
+MIME_TYPES = {"html": "text/html", "js": "text/javascript", "css": "text/css", "json": "text/json"}
 USERS = set()
 
 async def process_request(sever_root, path, request_headers):
@@ -18,16 +22,21 @@ async def process_request(sever_root, path, request_headers):
     if path == '/':
         path = '/index.html'
 
-    response_headers = [('Server', 'asyncio websocket server'), ('Connection', 'close')]
     full_path = os.path.realpath(os.path.join(sever_root, path[1:]))
-    if os.path.commonpath((sever_root, full_path)) != sever_root or not os.path.exists(full_path) or not os.path.isfile(full_path):
-        print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] HTTP GET {} 404 File not found".format(path))
-        return HTTPStatus.NOT_FOUND, [], b'404 NOT FOUND'
+    response_headers = [('Server', 'asyncio websocket server'), ('Connection', 'close')]
+
+    if path != '/server.json':
+        if os.path.commonpath((sever_root, full_path)) != sever_root or not os.path.exists(full_path) or not os.path.isfile(full_path):
+            print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] HTTP GET {} 404 File not found".format(path))
+            return HTTPStatus.NOT_FOUND, [], b'404 NOT FOUND'
 
     extension = full_path.split(".")[-1]
     mime_type = MIME_TYPES.get(extension, "application/octet-stream")
     response_headers.append(('Content-Type', mime_type))
-    body = open(full_path, 'rb').read()
+    if path != '/server.json':
+        body = open(full_path, 'rb').read()
+    else:
+        body = str('{"port": ' + str(MYPORT) + '}').encode()
     response_headers.append(('Content-Length', str(len(body))))
     return HTTPStatus.OK, response_headers, body
 
@@ -48,7 +57,7 @@ async def mysocket(websocket, path):
     finally:
         await unregister(websocket)
 
-async def sendmsg(channel, cmd, message):
+async def sendmsg(chan, cmd, message):
     #  cmd    chan      msg
     # -----------------------------
     # cmd1     0        @B:###
@@ -71,7 +80,7 @@ async def sendmsg(channel, cmd, message):
     # cmd5    0~x       monitor header/info
     timenow = int(time.time())
     for user in USERS:
-        await user.send('{"time": ' + str(timenow) + ', "cmd": "' + cmd + '", "data": "' + message.strip() + '"}')
+        await user.send('{"time":' + str(timenow) + ',"chan":' + str(chan) + ',"cmd":"' + cmd + '","data":"' + message.strip() + '"}')
 
 async def main():
     while True:
