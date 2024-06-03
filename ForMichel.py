@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 import os
 import sys
-import functools
-import json
-import socketserver
 import asyncio
 import time
 import websockets
@@ -12,6 +9,16 @@ from http import HTTPStatus
 MYPORT = 8765
 MIME_TYPES = {"html": "text/html", "js": "text/javascript", "css": "text/css"}
 USERS = set()
+
+# Replacing functools.partial as it seems be m issing in 3.2.xxx
+def partial(func, /, *args, **keywords):
+    def newfunc(*fargs, **fkeywords):
+        newkeywords = {**keywords, **fkeywords}
+        return func(*args, *fargs, **newkeywords)
+    newfunc.func = func
+    newfunc.args = args
+    newfunc.keywords = keywords
+    return newfunc
 
 async def process_request(sever_root, path, request_headers):
     """Serves a file when doing a GET request with a valid path."""
@@ -92,8 +99,6 @@ async def get_stdin_reader() -> asyncio.StreamReader:
     return stream_reader
 
 async def main():
-    os.system("") # in case the above \033[F no works like windows...
-
     print("\u001B[8;37;44m")
     print("  _   _           _     ______          _        _      ")
     print(" | \\ | |         | |    | ___ \\        | |      | |     ")
@@ -104,7 +109,7 @@ async def main():
     print("\u001B[32m  An open source Python WS Packet server V1.1ß          ")
     print("\u001B[32m  For WA8DED Modems that support HostMode               \u001B[0m")
 
-    handler = functools.partial(process_request, os.getcwd() + '/www')
+    handler = partial(process_request, os.getcwd() + '/www')
 
     ws_server = await websockets.serve(ws_callback,'0.0.0.0',MYPORT,process_request=handler)
     print("[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] \u001B[33mWebserver listening on port " + str(MYPORT) + "\u001B[0m")
@@ -119,4 +124,5 @@ async def main():
         os.exit()
 
 if __name__ == '__main__':
+    os.system("") # in case the above \033[F no works like windows...
     asyncio.run(main())
