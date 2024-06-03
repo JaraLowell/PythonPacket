@@ -1,9 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 import os
-import time
 import sys
-import asyncio
 import functools
+import json
+import socketserver
+import asyncio
+import time
 import websockets
 from http import HTTPStatus
 
@@ -32,6 +34,14 @@ async def process_request(sever_root, path, request_headers):
     response_headers.append(('Content-Length', str(len(body))))
     return HTTPStatus.OK, response_headers, body
 
+async def handle_http(reader, writer):
+    print(reader)
+    data = await reader.read(100)
+    message = data.decode()
+    writer.write(data)
+    await writer.drain()
+    writer.close()
+
 async def register(websocket):
     print("[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] New WebSocket connection from", str(websocket.remote_address)[1:-1])
     USERS.add(websocket)
@@ -40,7 +50,7 @@ async def unregister(websocket):
     print("[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] WebSocket connection closed for", str(websocket.remote_address)[1:-1])
     USERS.remove(websocket)
 
-async def mysocket(websocket, path):
+async def ws_callback(websocket, path):
     await register(websocket)
     try:
         async for message in websocket:
@@ -82,16 +92,9 @@ async def get_stdin_reader() -> asyncio.StreamReader:
     return stream_reader
 
 async def main():
-    stdin_reader = await get_stdin_reader()
-    while True:
-        line = await stdin_reader.readline()
-        await sendmsg(0,'echo',line.decode())
-        print("\033[F[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Console] " + line.decode() + "\033[A")
-
-if __name__ == "__main__":
     os.system("") # in case the above \033[F no works like windows...
 
-    print("\u001B[8;37;44m");
+    print("\u001B[8;37;44m")
     print("  _   _           _     ______          _        _      ")
     print(" | \\ | |         | |    | ___ \\        | |      | |     ")
     print(" |  \\| | ___   __| | ___| |_/ /_ _  ___| | _____| |_    ")
@@ -102,12 +105,18 @@ if __name__ == "__main__":
     print("\u001B[32m  For WA8DED Modems that support HostMode               \u001B[0m")
 
     handler = functools.partial(process_request, os.getcwd() + '/www')
-    start_server = websockets.serve(mysocket, '0.0.0.0', MYPORT, process_request=handler)
-    print("[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] \u001B[33mRunning server at http://localhost:%d/\u001B[0m" % MYPORT)
 
-    loop = asyncio.get_event_loop()
+    ws_server = await websockets.serve(ws_callback,'0.0.0.0',MYPORT,process_request=handler)
+    print("[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] \u001B[33mWebserver listening on port " + str(MYPORT) + "\u001B[0m")
+
+    stdin_reader = await get_stdin_reader()
     try:
-        loop.run_until_complete(start_server)
-        loop.run_until_complete(main())
+        while True:
+            line = await stdin_reader.readline()
+            await sendmsg(0,'echo',line.decode())
+            print("\033[F[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Console] " + line.decode() + "\033[A")
     except KeyboardInterrupt:
-        loop.sto
+        os.exit()
+
+if __name__ == '__main__':
+    asyncio.run(main())
