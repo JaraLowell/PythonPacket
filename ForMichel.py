@@ -45,14 +45,34 @@ async def mysocket(websocket, path):
     try:
         async for message in websocket:
             print("[" + time.strftime("%H:%M:%S", time.gmtime()) + "] [Network] " + message)
-            await sendmsg(message)
+            await sendmsg(0,'echo',message)
     finally:
         await unregister(websocket)
 
-async def sendmsg(message):
+async def sendmsg(channel, cmd, message):
+    #  cmd    chan      msg
+    # -----------------------------
+    # cmd1     0        @B:###
+    # cmd1     0        @MEM:#####
+    # cmd1     0        @L:####
+    # cmd1     0        @M:##
+    # cmd1     0        @I:##
+    # cmd1    1~x       @B:
+    # cmd1    1~x       @MEM:#####
+    # cmd1    1~x       I:#
+    # cmd1    1~x       L:####
+    # cmd2    0~x       TNC Error
+    # cmd3    1~x       Active channels...
+    # cmd100   -        mheard
+    # warn    0~x       monitor info
+    # info    0~x       
+    # chat    0~x       connect info
+    # echo    0~x       console/website chat
+    # cmd4    0~x       monitor header/no info
+    # cmd5    0~x       monitor header/info
     timenow = int(time.time())
     for user in USERS:
-        await user.send('{"time": ' + str(timenow) + ', "cmd": "chat", "data": "' + message.strip() + '"}')
+        await user.send('{"time": ' + str(timenow) + ', "cmd": "' + cmd + '", "data": "' + message.strip() + '"}')
 
 async def get_stdin_reader() -> asyncio.StreamReader:
     stream_reader = asyncio.StreamReader()
@@ -65,7 +85,7 @@ async def main():
     stdin_reader = await get_stdin_reader()
     while True:
         line = await stdin_reader.readline()
-        await sendmsg(line.decode())
+        await sendmsg(0,'echo',line.decode())
         print("\033[F[" + time.strftime("%H:%M:%S", time.gmtime()) + "] [Console] " + line.decode() + "\033[A")
 
 if __name__ == "__main__":
