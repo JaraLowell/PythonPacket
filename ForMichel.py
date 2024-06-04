@@ -10,6 +10,7 @@ import json
 # text = codecs.decode(data, 'cp850').replace('\r', '\n')
 import codecs
 from http import HTTPStatus
+# maybe also smart to do a import gc and run gc.collect() every like 10 min or to when the beakon is send, when we figure out how to like add that
 
 MYPORT = 8765
 MIME_TYPES = {"html": "text/html", "js": "text/javascript", "css": "text/css", "json": "text/json"}
@@ -27,7 +28,7 @@ async def process_request(sever_root, path, request_headers):
 
     if path != '/server.json':
         if os.path.commonpath((sever_root, full_path)) != sever_root or not os.path.exists(full_path) or not os.path.isfile(full_path):
-            print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] HTTP GET {} 404 File not found".format(path))
+            print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network]\u001B[31m HTTP GET {} 404 File not found".format(path) + "\u001B[0m")
             return HTTPStatus.NOT_FOUND, [], b'404 NOT FOUND'
 
     extension = full_path.split(".")[-1]
@@ -41,18 +42,18 @@ async def process_request(sever_root, path, request_headers):
     return HTTPStatus.OK, response_headers, body
 
 async def register(websocket):
-    print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] New WebSocket connection from", str(websocket.remote_address)[1:-1])
+    print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network]\u001B[32m New WebSocket connection from", str(websocket.remote_address)[1:-1].replace('\'','').replace(', ',':') + "\u001B[0m")
     USERS.add(websocket)
 
 async def unregister(websocket):
-    print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] WebSocket connection closed for", str(websocket.remote_address)[1:-1])
+    print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network]\u001B[32m WebSocket connection closed for", str(websocket.remote_address)[1:-1].replace('\'','').replace(', ',':') + "\u001B[0m")
     USERS.remove(websocket)
 
 async def mysocket(websocket, path):
     await register(websocket)
     try:
         async for message in websocket:
-            print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] " + message)
+            print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network]\u001B[34m " + message + "\u001B[0m")
             await sendmsg(0,'echo',message)
     finally:
         await unregister(websocket)
@@ -87,7 +88,7 @@ async def main():
         text = await ainput("")
         text = text.encode().decode()
         await sendmsg(0,'echo',text)
-        print("\033[F\r[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Console] " + text, end='')
+        print("\033[F\r[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Console]\u001B[34m " + text + "\u001B[0m", end='')
 
 async def ainput(string: str) -> str:
     await asyncio.get_event_loop().run_in_executor(
@@ -96,9 +97,7 @@ async def ainput(string: str) -> str:
             None, sys.stdin.readline)
 
 if __name__ == "__main__":
-    os.system("") # in case the above \033[F no works like windows...
-
-    print("\u001B[8;37;44m");
+    os.system("")
     print("  _   _           _     ______          _        _      ")
     print(" | \\ | |         | |    | ___ \\        | |      | |     ")
     print(" |  \\| | ___   __| | ___| |_/ /_ _  ___| | _____| |_    ")
@@ -106,15 +105,17 @@ if __name__ == "__main__":
     print(" | |\\  | (_) | (_| |  __/ | | (_| | (__|   <  __/ |_    ")
     print(" \\_| \\_/\\___/ \\__,_|\\___\\_|  \\__,_|\\___|_|\\_\\___|\\__|   ")
     print("\u001B[32m  An open source Python WS Packet server V1.1ß          ")
-    print("\u001B[32m  For WA8DED Modems that support HostMode               \u001B[0m")
+    print("\u001B[32m  For WA8DED Modems that support HostMode               \u001B[0m\n")
 
     handler = functools.partial(process_request, os.getcwd() + '')
     start_server = websockets.serve(mysocket, '0.0.0.0', MYPORT, process_request=handler)
-    print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network] \u001B[33mRunning server at http://localhost:%d/ \u001B[0m " % MYPORT)
-
+    print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "]\u001B[33m Starting up HTTP server at http://localhost:%d/ \u001B[0m " % MYPORT)
+  
     try:
         asyncio.get_event_loop().run_until_complete(start_server)
         asyncio.get_event_loop().run_until_complete(main())
         asyncio.get_event_loop().run_forever()
     except KeyboardInterrupt:
         sys.exit()
+    except Exception as e:
+        print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network]\u001B[31m " + repr(e) + " \u001B[0m ")
