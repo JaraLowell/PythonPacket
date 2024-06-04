@@ -108,6 +108,11 @@ async def cleaner():
         await sendmsg(0,'cmd1','@MEM:' + str(tmp))
         print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "]\u001B[33m Running GC cleaner " + str(tmp) + "MB used \u001B[0m ")
 
+async def go_serial():
+    # serial port stuff here
+    while True:
+        await asyncio.sleep(5)
+        print("serial ping pong to do...")
 
 if __name__ == "__main__":
     os.system("")
@@ -126,6 +131,8 @@ if __name__ == "__main__":
   
     try:
         loop = asyncio.get_event_loop()
+        asyncio.ensure_future(go_serial())
+        
         loop.run_until_complete(start_server)
         loop.create_task(main())
         loop.create_task(cleaner())
