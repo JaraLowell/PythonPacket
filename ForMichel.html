@@ -64,7 +64,12 @@
   </body>
   <script src="//code.jquery.com/jquery-1.11.3.min.js"></script>
   <script>
-    var wsUri = "ws://192.168.178.66:8765/"; // 7712
+    function getCurrentURL () {
+        return window.location.href
+    }
+    const url = getCurrentURL().replace("http", "ws")
+
+    var wsUri = url;
     var socket = new WebSocket(wsUri);
     socket.onopen = e => {
         console.log("socket opened", e);
@@ -109,4 +114,5 @@
 
     //$('#chatmessages').scrollTop($('#chatmessages')[0].scrollHeight);
   </script>
+</html>
 </html>
