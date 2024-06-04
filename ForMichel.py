@@ -3,14 +3,18 @@ import os
 import time
 import sys
 import asyncio
-import functools
+import gc
+
+# psutil and websockets needs pip install
+import psutil
 import websockets
-# Next two are for the radio side of things
-import json
-# text = codecs.decode(data, 'cp850').replace('\r', '\n')
-import codecs
+import functools
 from http import HTTPStatus
-# maybe also smart to do a import gc and run gc.collect() every like 10 min or to when the beakon is send, when we figure out how to like add that
+
+# Next two are for the radio side of things
+# text = codecs.decode(data, 'cp850').replace('\r', '\n')
+import json
+import codecs
 
 MYPORT = 8765
 MIME_TYPES = {"html": "text/html", "js": "text/javascript", "css": "text/css", "json": "text/json"}
@@ -96,6 +100,15 @@ async def ainput(string: str) -> str:
     return await asyncio.get_event_loop().run_in_executor(
             None, sys.stdin.readline)
 
+async def cleaner():
+    while True:
+        await asyncio.sleep(60 * 5)
+        gc.collect()
+        tmp = int(psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024))
+        await sendmsg(0,'cmd1','@MEM:' + str(tmp))
+        print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "]\u001B[33m Running GC cleaner " + str(tmp) + "MB used \u001B[0m ")
+
+
 if __name__ == "__main__":
     os.system("")
     print("  _   _           _     ______          _        _      ")
@@ -112,10 +125,12 @@ if __name__ == "__main__":
     print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "]\u001B[33m Starting up HTTP server at http://localhost:%d/ \u001B[0m " % MYPORT)
   
     try:
-        asyncio.get_event_loop().run_until_complete(start_server)
-        asyncio.get_event_loop().run_until_complete(main())
-        asyncio.get_event_loop().run_forever()
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(start_server)
+        loop.create_task(main())
+        loop.create_task(cleaner())
+        loop.run_forever()
     except KeyboardInterrupt:
         sys.exit()
     except Exception as e:
-        print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "] [Network]\u001B[31m " + repr(e) + " \u001B[0m ")
+        print("\r\033[K[" + time.strftime("%H:%M:%S", time.localtime()) + "]\u001B[31m " + repr(e) + " \u001B[0m ")
