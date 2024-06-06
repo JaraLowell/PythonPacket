@@ -1,7 +1,9 @@
-# NodeJSPacket
-NodeJS Ham Radio Packet
+# PythonPacket
+Python Ham Radio Packet with Webserver
 
-Build in Node JS
+By Jaralowell and MichTronics
+
+Build in Python v3.10.10
 
 Right now it sends and recieves, can connect but has still some ways to go; The map data it grabs from the monitor if a station in it's beacon sends it's location.
 
