@@ -77,10 +77,20 @@
 
     socket.onclose = function (e) {
         console.log("socket closed", e);
+        setTimeout((function() {
+            var socket2 = new WebSocket(wsUri);
+            socket2.onopen    = socket.onopen;
+            socket2.onmessage = socket.onmessage;
+            socket2.onclose   = socket.onclose;
+            socket2.onerror   = socket.onerror;
+            socket = socket2;
+        }).bind(this), 7000);
     };
 
     socket.onmessage = function (e) {
         var tmp = JSON.parse(e.data);
+
+        if(tmp.data.substr(0, 2) == "L:" || tmp.data.substr(0, 2) == "@B") return;
 
         var date = new Date(tmp.time * 1000);
         var hours = "0" + date.getHours();
@@ -114,5 +124,4 @@
 
     //$('#chatmessages').scrollTop($('#chatmessages')[0].scrollHeight);
   </script>
-</html>
 </html>
