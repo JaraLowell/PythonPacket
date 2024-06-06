@@ -13,18 +13,17 @@ import asyncio
 import gc
 import re
 
-# psutil and websockets needs pip install
+# psutil and websockets needs pip install (and maybe codecs as well?)
 import psutil
 import websockets
+import codecs
 import functools
+import json
 from http import HTTPStatus
 
 # Next two are for the radio side of things
-# text = codecs.decode(data, 'cp850').replace('\r', '\n')
-import json
 import serial
 import configparser
-import codecs
 
 MYPORT = 8765
 MIME_TYPES = {"html": "text/html", "js": "text/javascript", "css": "text/css", "json": "text/json"}
@@ -32,8 +31,6 @@ USERS = set()
 BEACONDELAY = 30
 today_date = date.today()
 time_now = datetime.now()
-
-CLI = '\u001B['
 
 config = configparser.ConfigParser()
 config.read('./config.ini')
@@ -139,8 +136,6 @@ async def sendmsg(chan, cmd, message):
 async def main():
     while True:
         text = await ainput("")
-        # print(text.encode("utf-8").hex())
-        # text = text.encode().decode().replace(r'\r?\n|\r', '')
         await sendmsg(0,'echo',text)
         _print('\033[1A' + '\033[K', end='')
         print("[Console] " + text[:-1])
@@ -160,11 +155,6 @@ async def cleaner():
         gc.collect()
         tmp = int(psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024))
         await sendmsg(0,'cmd1','@MEM:' + str(tmp))
-        #print("\33[33m Running GC cleaner " + str(tmp) + "MB used \33[0m ")
-        #ser.write(b'\x00\x01\x01\x40\x42')
-        #tmp = ser.readline()[2:-1].decode()
-        #print("[TNCinit] " + tmp)
-        #await sendmsg(0,'cmd1','@B:' + tmp)
         beacon = send_tnc('NodePacket version 1.1\r', 0)
         ser.write(beacon)
         ser.readline()
@@ -177,10 +167,10 @@ def init_tncinWa8ded():
         print("[SerialP] Error" + repr(e))
         sys.exit()
     ser.write(b'\x11\x18\x1b')
-    ser.readline() # i got a b'* '
+    ser.readline()
     ser.write(b'\x4a\x48\x4f\x53\x54\x31\x0d')
     print('\33[33mSetting TNC in hostmode...\33[0m')
-    ser.readline() # i got a b'JHOST1\r\n'
+    ser.readline()
 
 def send_init_tnc(command, chan, cmd):
     length_command = len(command) - 1
@@ -190,8 +180,6 @@ def send_init_tnc(command, chan, cmd):
         hex_length_command = str(length_command)
 
     start_hex = '%02d' % (chan,) + '%02d' % (cmd,)
-    # start_hex = '0001'
-
     bytes_command = bytearray(command, 'utf-8')
     hex_begin_bytes = bytearray.fromhex(start_hex)
     hex_length_bytes = bytearray.fromhex(hex_length_command)
@@ -227,7 +215,6 @@ def init_tncConfig():
                 chan_i = chan_i + 1
                 print('[Chan %02d' % (chan_i,) + '] ' + callsign_str)
                 incremented_hex_value = x.to_bytes((x.bit_length() + 7) // 8, byteorder='big')
-                # print(incremented_hex_value + b'\x01' + callsign_len_byte + callsign_in_bytes)
                 ser.write(incremented_hex_value + b'\x01' + callsign_len_byte + callsign_in_bytes)
                 ser.readline()
         elif x == 6:
@@ -246,7 +233,6 @@ def init_tncConfig():
             all_bytes = send_init_tnc(config.get('tncinit', str(x)),0,1)
             ser.write(all_bytes)
             ser.readline()
-            # print(ser.readline())
     print('\33[33mTNC Active and listening...\33[0m')
     beacon = send_tnc('NodePacket version 1.1\r', 0)
     ser.write(beacon)
@@ -255,6 +241,7 @@ def init_tncConfig():
 async def go_serial():
     # serial port stuff here
     global polling
+    polling = 1
     while True:
         for x in range(int(channels[2:])):
             if polling == 1:
@@ -264,20 +251,23 @@ async def go_serial():
             if polling_data.hex() != 'ff0100':
                 # print("stop polling")
                 polling = 0
-                poll_byte = bytearray.fromhex(polling_data.hex()[-2:])
-                # print('Channel : ' + poll_byte.hex())
+                chan_i = int(polling_data.hex()[4:6],16) - 1
+                poll_byte = bytearray.fromhex('%02d' % (chan_i,))
                 ser.write(poll_byte + b'\x01\x00G')
-                # print((poll_byte + b'\x01\x00G').hex())
                 data = ser.readline()
-                data_int = int(data.hex()[2:][:2], 16)
-                chan_i = int(poll_byte.hex()[0:][:2], 16)
+                if data == '':
+                    polling = 1
+                    break
+                # print('IS 0000 > ' + data.hex())
+                data_int = int(data.hex()[2:4], 16)
                 namechan = '[Monitor]'
                 if chan_i != 0:
                     namechan = '[Chan %02d]' % (chan_i,)
 
                 if data_int == 0:
                     # print("Status : Succes with NoInfo")
-                    print(namechan + " \33[37m" + data.decode() + "\33[0m")
+                    # print(namechan + " \33[37m" + data.decode() + "\33[0m")
+                    polling = 1
                 elif data_int == 1:
                     # print("Succes with Messages")
                     print(namechan + " \33[37m" + data.decode() + "\33[0m")
@@ -286,7 +276,7 @@ async def go_serial():
                     print(namechan + " \33[37m" + data.decode() + "\33[0m")
                 elif data_int == 3:
                     # print("Link Status")
-                    print(namechan + " \33[37m" + data.decode()[2:] + "\33[0m")
+                    print(namechan + " \33[32m" + data.decode()[2:] + "\33[0m")
                 elif data_int == 4:
                     # print("Monitor Header NoInfo")
                     print(namechan + " \33[37m" + data.decode()[2:] + "\33[0m")
@@ -294,29 +284,35 @@ async def go_serial():
                     # print("Monitor Header With Info")
                     print(namechan + " \33[37m" + data.decode()[2:] + "\33[0m")
                     callsign = data.decode()[2:].split()[1]
-                elif data_int == 6:    
-                    # print("Monitor Information")
-                    # so 'callsign' = ['name','jo locator if known',first heard,last heard,heard count,first connect, last connect, connect count]
-                    data_decode = (codecs.decode(data, 'cp850')[3:]) # .replace('\n', '\n                     ')
-                    # data_decode = (data.decode()[3:-1]).replace('\r', '\r                     ')
-                    _print("                    \33[36m " + data_decode.replace('\n', '\n                     ') + "\33[0m")
-                    locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}', data_decode.upper())
+                elif data_int == 6:
+                    data_decode = (codecs.decode(data, 'cp850')[3:])
+                    data_out = data_decode.splitlines()
+                    _print('\33[36m', end='')
+                    for lines in data_out:
+                        _print('                     ' + lines)
+                    _print('\33[0m', end='')
+                    #locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}', data_decode.upper())
                     # if locator == []:
                     #     logheard(callsign, 6, '')
                     # else:
                     #     logheard(callsign, 6, locator[0])
                 elif data_int == 7:
                     # print("Connect information")
-                    print(namechan + " \33[37m" + data.decode()  + "\33[0m")
+                    # This should not be on monitor
+                    data_decode = (codecs.decode(data, 'cp850')[3:])
+                    data_out = data_decode.splitlines()
+                    _print('\33[31m', end='')
+                    for lines in data_out:
+                        _print('                     ' + lines)
+                    _print('\33[0m', end='')
                 else:
                     print("No data")
                     # pass
-                polling = 1
-
             x = x + 1
             await asyncio.sleep(0.016)
         else:
             x = 0;
+            # polling = 1
             ser.write(b'\x00\x01\x01\x40\x42')
             tmp = ser.readline()[2:-1].decode()
             await sendmsg(0,'cmd1','@B:' + tmp)
@@ -338,7 +334,7 @@ if __name__ == "__main__":
 
     # Replacing the pring function to always add time
     _print = print # keep a local copy of the original print
-    builtins.print = lambda *args, **kwargs: _print("\r\33[K\33[38;2;50;50;50m[" + time.strftime("%H:%M:%S", time.localtime()) + "]", *args, **kwargs)
+    builtins.print = lambda *args, **kwargs: _print("\r\33[K\33[1;30m[" + time.strftime("%H:%M:%S", time.localtime()) + "]", *args, **kwargs)
 
     handler = functools.partial(process_request, os.getcwd() + '')
     start_server = websockets.serve(mysocket, '0.0.0.0', MYPORT, process_request=handler, ping_interval=None)
