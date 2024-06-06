@@ -266,6 +266,21 @@ def init_tncConfig():
     ser.write(beacon)
     ser.readline()
 
+def logheard(callsign, status, locator):
+    timenow = int(time.time())
+    print(timenow)
+    print(callsign)
+    print(status)
+    print(locator)
+    if callsign in MHeard:
+        MHeard[callsign][1] = locator
+        MHeard[callsign][3] = timenow
+        MHeard[callsign][4] += 1
+    else:
+        MHeard[callsign] = ['', locator, timenow, timenow, 1, 0, 0, 0]
+
+    print(MHeard)
+
 async def go_serial():
     # serial port stuff here
     global polling
