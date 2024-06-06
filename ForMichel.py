@@ -70,8 +70,6 @@ ser.writeTimeout = 2                # timeout for write
 
 if MHeardExist:
     MHLoad = logParser.loadJson(MHeardPath, 'MH')
-    # open(MHeardPath)
-    # Mheard = json.load(MHeardf)
     print(MHLoad)
 
 
