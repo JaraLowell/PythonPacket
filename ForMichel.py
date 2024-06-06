@@ -25,6 +25,8 @@ from http import HTTPStatus
 import serial
 import configparser
 
+from logParser import logParser
+
 def num2byte(number):
     return bytearray.fromhex("{0:#0{1}x}".format(number,4)[2:])
 
@@ -38,6 +40,8 @@ ACTCHANNELS = {0: 'CQ'}
 Chan_Hist = {}
 Moni_Hist = {}
 MHeard    = {}
+MHeardPath = 'MHeard.json'
+MHeardExist =  os.path.exists(MHeardPath)
 
 today_date = date.today()
 time_now = datetime.now()
@@ -52,7 +56,7 @@ polling = 1
 channel_to_read_byte = b'x00'
 
 ser = serial.Serial()
-ser.port = 'COM8'
+ser.port = 'COM2'
 ser.baudrate = 9600
 ser.bytesize = serial.EIGHTBITS     # number of bits per bytes
 ser.parity = serial.PARITY_NONE     # set parity check: no parity
@@ -63,6 +67,13 @@ ser.xonxoff = False                 # disable software flow control
 ser.rtscts = False                  # disable hardware (RTS/CTS) flow control
 ser.dsrdtr = False                  # disable hardware (DSR/DTR) flow control
 ser.writeTimeout = 2                # timeout for write
+
+if MHeardExist:
+    MHLoad = logParser.loadJson(MHeardPath, 'MH')
+    # open(MHeardPath)
+    # Mheard = json.load(MHeardf)
+    print(MHLoad)
+
 
 async def process_request(sever_root, path, request_headers):
     if "Upgrade" in request_headers:
@@ -384,6 +395,8 @@ if __name__ == "__main__":
         loop.create_task(cleaner())
         loop.run_forever()
     except KeyboardInterrupt:
+        logParser.saveJson(MHeardPath, MHeard, 'MH')
+        print('Saved MHeard.json')
         print("\33[1;33mPut TNC in Un-attended mode...\33[0m")
         ser.write(b'\x00\x01\x01\x4d\x4e') # ^MN
         ser.readline()
