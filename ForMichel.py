@@ -56,8 +56,8 @@ polling = 1
 channel_to_read_byte = b'x00'
 
 ser = serial.Serial()
-ser.port = 'COM2'
-ser.baudrate = 9600
+ser.port = config.get('intertnc', 'serial_port')
+ser.baudrate = config.get('intertnc', 'serial_baud')
 ser.bytesize = serial.EIGHTBITS     # number of bits per bytes
 ser.parity = serial.PARITY_NONE     # set parity check: no parity
 ser.stopbits = serial.STOPBITS_ONE  # number of stop bits
@@ -363,14 +363,14 @@ async def go_serial():
 
 if __name__ == "__main__":
     os.system("")
-    print("\33[1;34m  _   _           _     ______          _        _      ")
-    print(" | \\ | |         | |    | ___ \\        | |      | |     ")
-    print(" |  \\| | ___   __| | ___| |_/ /_ _  ___| | _____| |_    ")
-    print(" | . ` |/ _ \\ / _` |/ _ \\  __/ _` |/ __| |/ / _ \\ __|   ")
-    print(" | |\\  | (_) | (_| |  __/ | | (_| | (__|   <  __/ |_    ")
-    print(" \\_| \\_/\\___/ \\__,_|\\___\\_|  \\__,_|\\___|_|\\_\\___|\\__|   ")
-    print("\33[1;32m  An open source Python WS Packet server V1.1ß          ")
-    print("\33[1;32m  For WA8DED Modems that support HostMode               \33[0m\n")
+    print("\33[1;34m  _____       _   _                   _____           _        _   _____           _ _")
+    print(" |  __ \\     | | | |                 |  __ \\         | |      | | |  __ \\         | (_)")
+    print(" | |__) |   _| |_| |__   ___  _ __   | |__) |_ _  ___| | _____| |_| |__) |__ _  __| |_  ___")
+    print(" |  ___/ | | | __| '_ \\ / _ \\| '_ \\  |  ___/ _` |/ __| |/ / _ \\ __|  _  // _` |/ _` | |/ _ \\")
+    print(" | |   | |_| | |_| | | | (_) | | | |_| |  | (_| | (__|   <  __/ |_| | \\ \\ (_| | (_| | | (_) |")
+    print(" |_|    \\__, |\\__|_| |_|\\___/|_| |_(_)_|   \\__,_|\\___|_|\\_\\___|\\__|_|  \\_\\__,_|\\__,_|_|\\___(_)")
+    print("\33[1;34m         __/ | \33[1;32m  An open source Python 3.10 WS Packet server V1.1ß             Created By")
+    print("\33[1;34m        |___/\33[1;32m  For WA8DED Modems that support HostMode                JaraLowell & MichTronics\33[0m\n")
 
     # Replacing the pring function to always add time
     _print = print # keep a local copy of the original print
