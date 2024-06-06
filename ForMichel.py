@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import print_function
 try:
-    import __builtin__ as builtins # Python 2
+    import __builtin__ as builtins # type: ignore # Python 2
 except ImportError:
     import builtins # Python 3
 
@@ -25,10 +25,20 @@ from http import HTTPStatus
 import serial
 import configparser
 
+def num2byte(number):
+    return bytearray.fromhex("{0:#0{1}x}".format(number,4)[2:])
+
 MYPORT = 8765
 MIME_TYPES = {"html": "text/html", "js": "text/javascript", "css": "text/css", "json": "text/json"}
 USERS = set()
 BEACONDELAY = 30
+ACTIVECHAN = num2byte(0)
+ACTCHANNELS = {0: 'CQ'}
+
+Chan_Hist = {}
+Moni_Hist = {}
+MHeard    = {}
+
 today_date = date.today()
 time_now = datetime.now()
 
@@ -66,7 +76,7 @@ async def process_request(sever_root, path, request_headers):
 
     if path != '/server.json':
         if os.path.commonpath((sever_root, full_path)) != sever_root or not os.path.exists(full_path) or not os.path.isfile(full_path):
-            print("[Network]\33[31m HTTP GET {} 404 File not found".format(path) + "\33[0m")
+            print("[Network]\33[1;31m HTTP GET {} 404 File not found".format(path) + "\33[0m")
             return HTTPStatus.NOT_FOUND, [], b'404 NOT FOUND'
 
     extension = full_path.split(".")[-1]
@@ -80,63 +90,67 @@ async def process_request(sever_root, path, request_headers):
     return HTTPStatus.OK, response_headers, body
 
 async def register(websocket):
+    global USERS
     print("[Network]\33[32m New WebSocket connection from", str(websocket.remote_address)[1:-1].replace('\'','').replace(', ',':') + "\33[0m")
     USERS.add(websocket)
     ser.write(b'\x00\x01\x00\x4D')
     tmp = ser.readline()[2:-1].decode()
-    await sendmsg(0,'cmd1','@M:' + tmp)
+    await sendmsg(0,'cmd1','M:' + tmp)
     ser.write(b'\x00\x01\x00\x49')
     tmp = ser.readline()[2:-1].decode()
-    await sendmsg(0,'cmd1','@I:' + tmp)
+    await sendmsg(0,'cmd1','I:' + tmp)
 
 async def unregister(websocket):
+    global ACTIVECHAN
+    global USERS
     print("[Network]\33[32m WebSocket connection closed for", str(websocket.remote_address)[1:-1].replace('\'','').replace(', ',':') + "\33[0m")
     USERS.remove(websocket)
+    ACTIVECHAN = num2byte(0)
 
 async def mysocket(websocket, path):
+    global ACTIVECHAN
+    global ACTCHANNELS
     await register(websocket)
     try:
         async for message in websocket:
-            print("[Network] " + message + "\33[0m")
-            await sendmsg(0,'echo',message)
-            beacon = send_tnc(message + '\r', 0)
-            ser.write(beacon)
-            ser.readline()
+            if message[:1] == '@':
+                if message[1:].isnumeric():
+                    tmp2 = int(message[1:])
+                    ACTIVECHAN = num2byte(tmp2)
+                    ser.write(ACTIVECHAN + b'\x01\x00\x49')
+                    tmp = ser.readline()[2:-1].decode()
+                    await sendmsg(tmp2,'cmd1','I:' + tmp)
+                    # macybe send connected to name ?
+                    ser.write(ACTIVECHAN + b'\x01\x00\x43')
+                    # await sendmsg(int(message[1:]),'cmd3','C:' + tmp)
+                    ACTCHANNELS[tmp2] = ser.readline()[2:-1].decode()
+                    await sendmsg(tmp2,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
+            else:
+                print("[Network] " + message + "\33[0m")
+                await sendmsg(0,'echo',message)
+                beacon = send_tnc(message + '\r', 0)
+                ser.write(beacon)
+                ser.readline()
+    except Exception as e:
+        print("[Network] \33[1;31m" + repr(e))
     finally:
         await unregister(websocket)
 
 async def sendmsg(chan, cmd, message):
-    #  cmd    chan      msg
-    # -----------------------------
-    # cmd1     0        @B:###
-    # cmd1     0        @MEM:#####
-    # cmd1     0        @L:####
-    # cmd1     0        @M:##
-    # cmd1     0        @I:##
-    # cmd1    1~x       @B:
-    # cmd1    1~x       @MEM:#####
-    # cmd1    1~x       I:#
-    # cmd1    1~x       L:####
-    # cmd2    0~x       TNC Error
-    # cmd3    1~x       Active channels...
-    # cmd100   -        mheard
-    # warn    0~x       monitor info
-    # info    0~x       
-    # chat    0~x       connect info
-    # echo    0~x       console/website chat
-    # cmd4    0~x       monitor header/no info
-    # cmd5    0~x       monitor header/info
+    global USERS
     timenow = int(time.time())
-    for user in USERS:
+    if USERS:
         try:
-            await user.send('{"time":' + str(timenow) + ',"chan":' + str(chan) + ',"cmd":"' + cmd + '","data":"' + message.strip() + '"}')
+            for user in USERS:
+                await user.send('{"time":' + str(timenow) + ',"chan":' + str(chan) + ',"cmd":"' + cmd + '","data":"' + message + '"}')
         except Exception as e:
-            print("[Network] Error" + repr(e))
+            print("[Network] \33[1;31m" + repr(e))
 
 async def main():
+    global ACTIVECHAN
     while True:
         text = await ainput("")
-        await sendmsg(0,'echo',text)
+        await sendmsg(0,'echo',text[:-1])
         _print('\033[1A' + '\033[K', end='')
         print("[Console] " + text[:-1])
         beacon = send_tnc(text[:-1], 0)
@@ -153,8 +167,6 @@ async def cleaner():
     while True:
         await asyncio.sleep(60 * BEACONDELAY)
         gc.collect()
-        tmp = int(psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024))
-        await sendmsg(0,'cmd1','@MEM:' + str(tmp))
         beacon = send_tnc('NodePacket version 1.1\r', 0)
         ser.write(beacon)
         ser.readline()
@@ -164,7 +176,7 @@ def init_tncinWa8ded():
     try:
         ser.open()
     except Exception as e:
-        print("[SerialP] Error" + repr(e))
+        print("[Serial!] \33[1;31m" + repr(e))
         sys.exit()
     ser.write(b'\x11\x18\x1b')
     ser.readline()
@@ -199,7 +211,11 @@ def send_tnc(command, channel):
     return bytearray.fromhex(''.join(allbytes))
 
 def init_tncConfig():
+    global ACTCHANNELS
+    ACTCHANNELS = {}
     for x in range(1, 18):
+        if x == 2:
+            ACTCHANNELS[0] = config.get('tncinit', '2')[2:]
         if x == 3:
             all_bytes = send_init_tnc(config.get('tncinit', str(x)),0,1)
             ser.write(all_bytes)
@@ -213,10 +229,13 @@ def init_tncConfig():
             chan_i = 0
             for x in range(1, int(channels[2:]) + 1):
                 chan_i = chan_i + 1
-                print('[Chan %02d' % (chan_i,) + '] ' + callsign_str)
-                incremented_hex_value = x.to_bytes((x.bit_length() + 7) // 8, byteorder='big')
+                incremented_hex_value = num2byte(chan_i)
                 ser.write(incremented_hex_value + b'\x01' + callsign_len_byte + callsign_in_bytes)
                 ser.readline()
+                ser.write(incremented_hex_value + b'\x01\x00\x43')
+                tmp = (ser.readline())[2:-1].decode()
+                print('[Chan %02d' % (chan_i,) + '] ' + callsign_str + ' > ' + tmp)
+                ACTCHANNELS[x] = tmp
         elif x == 6:
             # Set date for K
             date_string = today_date.strftime("%m/%d/%y")
@@ -233,7 +252,7 @@ def init_tncConfig():
             all_bytes = send_init_tnc(config.get('tncinit', str(x)),0,1)
             ser.write(all_bytes)
             ser.readline()
-    print('\33[33mTNC Active and listening...\33[0m')
+    print('\33[1;33mTNC Active and listening...\33[0m')
     beacon = send_tnc('NodePacket version 1.1\r', 0)
     ser.write(beacon)
     ser.readline()
@@ -241,6 +260,7 @@ def init_tncConfig():
 async def go_serial():
     # serial port stuff here
     global polling
+    global ACTIVECHAN
     polling = 1
     while True:
         for x in range(int(channels[2:])):
@@ -252,7 +272,7 @@ async def go_serial():
                 # print("stop polling")
                 polling = 0
                 chan_i = int(polling_data.hex()[4:6],16) - 1
-                poll_byte = bytearray.fromhex('%02d' % (chan_i,))
+                poll_byte = num2byte(chan_i) # bytearray.fromhex('%02d' % (chan_i,))
                 ser.write(poll_byte + b'\x01\x00G')
                 data = ser.readline()
                 if data == '':
@@ -270,26 +290,33 @@ async def go_serial():
                     polling = 1
                 elif data_int == 1:
                     # print("Succes with Messages")
-                    print(namechan + " \33[37m" + data.decode() + "\33[0m")
+                    print(namechan + " \33[1;32m" + data.decode() + "\33[0m")
+                    await sendmsg(chan_i,'cmd1',"OK:" + data.decode()[2:])
                 elif data_int == 2:
                     # print("Failure with Messages")
-                    print(namechan + " \33[37m" + data.decode() + "\33[0m")
+                    print(namechan + " \33[1;31m" + data.decode() + "\33[0m")
+                    await sendmsg(chan_i,'cmd2',"Error:" + data.decode()[2:])
                 elif data_int == 3:
                     # print("Link Status")
-                    print(namechan + " \33[32m" + data.decode()[2:] + "\33[0m")
+                    print(namechan + " \33[0;37m" + data.decode()[2:] + "\33[0m")
+                    await sendmsg(chan_i,'chat',data.decode()[2:])
                 elif data_int == 4:
                     # print("Monitor Header NoInfo")
-                    print(namechan + " \33[37m" + data.decode()[2:] + "\33[0m")
+                    print(namechan + " \33[1;37m" + data.decode()[2:] + "\33[0m")
+                    await sendmsg(chan_i,'cmd4',data.decode()[2:])
                 elif data_int == 5:
                     # print("Monitor Header With Info")
-                    print(namechan + " \33[37m" + data.decode()[2:] + "\33[0m")
+                    print(namechan + " \33[1;37m" + data.decode()[2:] + "\33[0m")
+                    #need check mheard if new or not and appent to msg *NEW*
+                    await sendmsg(chan_i,'cmd5',data.decode()[2:-1])
                     callsign = data.decode()[2:].split()[1]
                 elif data_int == 6:
                     data_decode = (codecs.decode(data, 'cp850')[3:])
                     data_out = data_decode.splitlines()
-                    _print('\33[36m', end='')
+                    _print('\33[1;34m', end='')
                     for lines in data_out:
                         _print('                     ' + lines)
+                        await sendmsg(chan_i,'warn',lines)
                     _print('\33[0m', end='')
                     #locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}', data_decode.upper())
                     # if locator == []:
@@ -301,9 +328,10 @@ async def go_serial():
                     # This should not be on monitor
                     data_decode = (codecs.decode(data, 'cp850')[3:])
                     data_out = data_decode.splitlines()
-                    _print('\33[31m', end='')
+                    _print('\33[1;30m', end='')
                     for lines in data_out:
                         _print('                     ' + lines)
+                        await sendmsg(chan_i,'chat',lines)
                     _print('\33[0m', end='')
                 else:
                     print("No data")
@@ -313,32 +341,36 @@ async def go_serial():
         else:
             x = 0;
             # polling = 1
-            ser.write(b'\x00\x01\x01\x40\x42')
+            chan_i = int(ACTIVECHAN.hex(), 16)
+            ser.write(ACTIVECHAN + b'\x01\x01\x40\x42')
             tmp = ser.readline()[2:-1].decode()
-            await sendmsg(0,'cmd1','@B:' + tmp)
+            await sendmsg(chan_i,'cmd1','@B:' + tmp)
             await asyncio.sleep(0.016)
-            ser.write(b'\x00\x01\x00\x4C')
+            ser.write(ACTIVECHAN + b'\x01\x00\x4C')
             tmp = ser.readline()[2:-1].decode()
-            await sendmsg(0,'cmd1','L:' + tmp)
+            await sendmsg(chan_i,'cmd1','L:' + tmp)
+            tmp = int(psutil.Process(os.getpid()).memory_info().rss)
+            await sendmsg(chan_i,'cmd1','@MEM:' + str(tmp))
 
 if __name__ == "__main__":
     os.system("")
-    print("  _   _           _     ______          _        _      ")
+    print("\33[1;34m  _   _           _     ______          _        _      ")
     print(" | \\ | |         | |    | ___ \\        | |      | |     ")
     print(" |  \\| | ___   __| | ___| |_/ /_ _  ___| | _____| |_    ")
     print(" | . ` |/ _ \\ / _` |/ _ \\  __/ _` |/ __| |/ / _ \\ __|   ")
     print(" | |\\  | (_) | (_| |  __/ | | (_| | (__|   <  __/ |_    ")
     print(" \\_| \\_/\\___/ \\__,_|\\___\\_|  \\__,_|\\___|_|\\_\\___|\\__|   ")
-    print("\33[32m  An open source Python WS Packet server V1.1ß          ")
-    print("\33[32m  For WA8DED Modems that support HostMode               \33[0m\n")
+    print("\33[1;32m  An open source Python WS Packet server V1.1ß          ")
+    print("\33[1;32m  For WA8DED Modems that support HostMode               \33[0m\n")
 
     # Replacing the pring function to always add time
     _print = print # keep a local copy of the original print
     builtins.print = lambda *args, **kwargs: _print("\r\33[K\33[1;30m[" + time.strftime("%H:%M:%S", time.localtime()) + "]", *args, **kwargs)
 
-    handler = functools.partial(process_request, os.getcwd() + '')
+    handler = functools.partial(process_request, os.getcwd() + os.path.sep + 'www')
     start_server = websockets.serve(mysocket, '0.0.0.0', MYPORT, process_request=handler, ping_interval=None)
-    print("\33[33mStarting up HTTP server at http://localhost:%d/ \33[0m " % MYPORT)
+    print("\33[1;33mStarting up HTTP server at http://localhost:%d/ \33[0m " % MYPORT)
+    print("\33[1;33mWeb server files home folder set to " + os.getcwd() + os.path.sep + "www\33[0m")
 
     init_tncinWa8ded()
     init_tncConfig()
@@ -352,7 +384,7 @@ if __name__ == "__main__":
         loop.create_task(cleaner())
         loop.run_forever()
     except KeyboardInterrupt:
-        print("\33[33mPut TNC back in usermode...\33[0m")
+        print("\33[1;33mPut TNC in Un-attended mode...\33[0m")
         ser.write(b'\x00\x01\x01\x4d\x4e') # ^MN
         ser.readline()
         ser.write(b'\x00\x01\x06\x55\x31\x41\x77\x61\x79\x21') # U1 Away!
@@ -361,8 +393,7 @@ if __name__ == "__main__":
         ser.readline()
         ser.write(b'\x00\x01\x05\x4a\x48\x4f\x53\x54\x30') # JHOST0
         ser.readline()
-        ser.flushInput()
         ser.close()
         sys.exit()
     except Exception as e:
-        print("\33[31m " + repr(e) + "\33[0m")
+        print("\33[1;31m " + repr(e) + "\33[0m")
