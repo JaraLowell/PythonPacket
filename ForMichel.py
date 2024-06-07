@@ -36,7 +36,7 @@ config.read('./config.ini')
 MYPORT = 8765
 MIME_TYPES = {"html": "text/html", "js": "text/javascript", "css": "text/css", "json": "text/json"}
 USERS = set()
-BEACONDELAY = config.get('radio', 'beacon_time')
+BEACONDELAY = int(config.get('radio', 'beacon_time'))
 BEACONTEXT = config.get('radio', 'beacon_text')
 ACTIVECHAN = num2byte(0)
 ACTCHANNELS = {0: 'CQ'}
