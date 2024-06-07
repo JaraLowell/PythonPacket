@@ -30,10 +30,14 @@ from logParser import logParser
 def num2byte(number):
     return bytearray.fromhex("{0:#0{1}x}".format(number,4)[2:])
 
+config = configparser.ConfigParser()
+config.read('./config.ini')
+
 MYPORT = 8765
 MIME_TYPES = {"html": "text/html", "js": "text/javascript", "css": "text/css", "json": "text/json"}
 USERS = set()
-BEACONDELAY = 30
+BEACONDELAY = config.get('radio', 'beacon_time')
+BEACONTEXT = config.get('radio', 'beacon_text')
 ACTIVECHAN = num2byte(0)
 ACTCHANNELS = {0: 'CQ'}
 
@@ -45,9 +49,6 @@ MHeardExist =  os.path.exists(MHeardPath)
 
 today_date = date.today()
 time_now = datetime.now()
-
-config = configparser.ConfigParser()
-config.read('./config.ini')
 
 channels = config.get('tncinit', '3')
 callsign = ""
@@ -176,7 +177,7 @@ async def cleaner():
     while True:
         await asyncio.sleep(60 * BEACONDELAY)
         gc.collect()
-        beacon = send_tnc('NodePacket version 1.1\r', 0)
+        beacon = send_tnc(BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime()) + '\r', 0)
         ser.write(beacon)
         ser.readline()
 
@@ -262,7 +263,7 @@ def init_tncConfig():
             ser.write(all_bytes)
             ser.readline()
     print('\33[0;33mTNC Active and listening...\33[0m')
-    beacon = send_tnc('NodePacket version 1.1\r', 0)
+    beacon = send_tnc(BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime()) + '\r', 0)
     ser.write(beacon)
     ser.readline()
 
@@ -278,21 +279,26 @@ async def go_serial():
                 polling_data = ser.readline()
                 # print('IS 0000 > ' + polling_data.hex())
 
-            if polling_data.hex() == '0000ff0100':
-                # out of sync....
-                polling_data = b'\xff\x01\x00'
+            if polling_data.hex() == '0000ff0100' or polling_data.hex() == '':
+                # out of sync ? polled to fast or....
+                polling_data = b'\x00\x01\x00'
 
             if polling_data.hex() != 'ff0100':
                 # print("stop polling")  0000ff0100
                 polling = 0
-                chan_i = int(polling_data.hex()[4:6],16) - 1
-                poll_byte = num2byte(chan_i) # bytearray.fromhex('%02d' % (chan_i,))
+
+                chan_i = int(polling_data.hex()[4:6]) - 1
+                if chan_i < 0:
+                    chan_i = 0
+
+                poll_byte = num2byte(chan_i)
                 ser.write(poll_byte + b'\x01\x00G')
                 data = ser.readline()
                 if data == '':
                     polling = 1
                     break
                 # print('IS 0000 > ' + data.hex())
+
                 data_int = int(data.hex()[2:4], 16)
                 namechan = '[Monitor]'
                 if chan_i != 0:
@@ -385,7 +391,7 @@ if __name__ == "__main__":
 
     handler = functools.partial(process_request, os.getcwd() + os.path.sep + 'www')
     start_server = websockets.serve(mysocket, '0.0.0.0', MYPORT, process_request=handler, ping_interval=None)
-    print("\33[0;33mStarting up HTTP server at http://localhost:%d/ \33[0m " % MYPORT)
+    print("\33[0;33mStarting up HTTP server at http://localhost:%d/" % MYPORT)
     print("\33[0;33mWeb server files home folder set to " + os.getcwd() + os.path.sep + "www\33[0m")
 
     init_tncinWa8ded()
