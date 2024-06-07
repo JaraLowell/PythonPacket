@@ -70,7 +70,7 @@ ser.writeTimeout = 2                # timeout for write
 
 if MHeardExist:
     MHLoad = logParser.loadJson(MHeardPath, 'MH')
-    print(MHLoad)
+    # print(MHLoad)
 
 
 async def process_request(sever_root, path, request_headers):
@@ -190,7 +190,7 @@ def init_tncinWa8ded():
     ser.write(b'\x11\x18\x1b')
     ser.readline()
     ser.write(b'\x4a\x48\x4f\x53\x54\x31\x0d')
-    print('\33[33mSetting TNC in hostmode...\33[0m')
+    print('\33[0;33mSetting TNC in hostmode...\33[0m')
     ser.readline()
 
 def send_init_tnc(command, chan, cmd):
@@ -261,7 +261,7 @@ def init_tncConfig():
             all_bytes = send_init_tnc(config.get('tncinit', str(x)),0,1)
             ser.write(all_bytes)
             ser.readline()
-    print('\33[1;33mTNC Active and listening...\33[0m')
+    print('\33[0;33mTNC Active and listening...\33[0m')
     beacon = send_tnc('NodePacket version 1.1\r', 0)
     ser.write(beacon)
     ser.readline()
@@ -277,8 +277,13 @@ async def go_serial():
                 ser.write(b'\xff\x01\x00G')
                 polling_data = ser.readline()
                 # print('IS 0000 > ' + polling_data.hex())
+
+            if polling_data.hex() == '0000ff0100':
+                # out of sync....
+                polling_data = b'\xff\x01\x00'
+
             if polling_data.hex() != 'ff0100':
-                # print("stop polling")
+                # print("stop polling")  0000ff0100
                 polling = 0
                 chan_i = int(polling_data.hex()[4:6],16) - 1
                 poll_byte = num2byte(chan_i) # bytearray.fromhex('%02d' % (chan_i,))
@@ -299,12 +304,14 @@ async def go_serial():
                     polling = 1
                 elif data_int == 1:
                     # print("Succes with Messages")
-                    print(namechan + " \33[1;32m" + data.decode() + "\33[0m")
-                    await sendmsg(chan_i,'cmd1',"OK:" + data.decode()[2:])
+                    data_decode = (codecs.decode(data, 'cp850')[1:])
+                    print(namechan + " \33[1;32m" + data_decode + "\33[0m")
+                    await sendmsg(chan_i,'cmd1',"OK: " + data_decode)
                 elif data_int == 2:
                     # print("Failure with Messages")
-                    print(namechan + " \33[1;31m" + data.decode() + "\33[0m")
-                    await sendmsg(chan_i,'cmd2',"Error:" + data.decode()[2:])
+                    data_decode = (codecs.decode(data, 'cp850')[1:])
+                    print(namechan + " \33[1;31m" + data_decode + "\33[0m")
+                    await sendmsg(chan_i,'cmd2',"Error: " + data_decode)
                 elif data_int == 3:
                     # print("Link Status")
                     print(namechan + " \33[0;37m" + data.decode()[2:] + "\33[0m")
@@ -322,7 +329,7 @@ async def go_serial():
                 elif data_int == 6:
                     data_decode = (codecs.decode(data, 'cp850')[3:])
                     data_out = data_decode.splitlines()
-                    _print('\33[1;34m', end='')
+                    _print('\33[1;36m', end='')
                     for lines in data_out:
                         _print('                     ' + lines)
                         await sendmsg(chan_i,'warn',lines)
@@ -363,14 +370,14 @@ async def go_serial():
 
 if __name__ == "__main__":
     os.system("")
-    print("\33[1;34m  _____       _   _                   _____           _        _   _____           _ _")
-    print(" |  __ \\     | | | |                 |  __ \\         | |      | | |  __ \\         | (_)")
-    print(" | |__) |   _| |_| |__   ___  _ __   | |__) |_ _  ___| | _____| |_| |__) |__ _  __| |_  ___")
-    print(" |  ___/ | | | __| '_ \\ / _ \\| '_ \\  |  ___/ _` |/ __| |/ / _ \\ __|  _  // _` |/ _` | |/ _ \\")
-    print(" | |   | |_| | |_| | | | (_) | | | |_| |  | (_| | (__|   <  __/ |_| | \\ \\ (_| | (_| | | (_) |")
-    print(" |_|    \\__, |\\__|_| |_|\\___/|_| |_(_)_|   \\__,_|\\___|_|\\_\\___|\\__|_|  \\_\\__,_|\\__,_|_|\\___(_)")
-    print("\33[1;34m         __/ | \33[1;32m  An open source Python 3.10 WS Packet server V1.1ß             Created By")
-    print("\33[1;34m        |___/\33[1;32m  For WA8DED Modems that support HostMode                JaraLowell & MichTronics\33[0m\n")
+    print("\33[0;36m _____       _   _                   _____           _        _   _____           _ _")
+    print("|  __ \\     | | | |                 |  __ \\         | |      | | |  __ \\         | (_)")
+    print("| |__) |   _| |_| |__   ___  _ __   | |__) |_ _  ___| | _____| |_| |__) |__ _  __| |_  ___")
+    print("|  ___/ | | | __| '_ \\ / _ \\| '_ \\  |  ___/ _` |/ __| |/ / _ \\ __|  _  // _` |/ _` | |/ _ \\")
+    print("| |   | |_| | |_| | | | (_) | | | |_| |  | (_| | (__|   <  __/ |_| | \\ \\ (_| | (_| | | (_) |")
+    print("|_|    \\__, |\\__|_| |_|\\___/|_| |_(_)_|   \\__,_|\\___|_|\\_\\___|\\__|_|  \\_\\__,_|\\__,_|_|\\___(_)")
+    print("\33[0;36m        __/ | \33[0;32m  An open source Python 3.10 WS Packet server V1.1ß             Created By")
+    print("\33[0;36m       |___/\33[0;32m  For WA8DED Modems that support HostMode                JaraLowell & MichTronics\33[0m\n")
 
     # Replacing the pring function to always add time
     _print = print # keep a local copy of the original print
@@ -378,8 +385,8 @@ if __name__ == "__main__":
 
     handler = functools.partial(process_request, os.getcwd() + os.path.sep + 'www')
     start_server = websockets.serve(mysocket, '0.0.0.0', MYPORT, process_request=handler, ping_interval=None)
-    print("\33[1;33mStarting up HTTP server at http://localhost:%d/ \33[0m " % MYPORT)
-    print("\33[1;33mWeb server files home folder set to " + os.getcwd() + os.path.sep + "www\33[0m")
+    print("\33[0;33mStarting up HTTP server at http://localhost:%d/ \33[0m " % MYPORT)
+    print("\33[0;33mWeb server files home folder set to " + os.getcwd() + os.path.sep + "www\33[0m")
 
     init_tncinWa8ded()
     init_tncConfig()
@@ -395,7 +402,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logParser.saveJson(MHeardPath, MHeard, 'MH')
         print('Saved MHeard.json')
-        print("\33[1;33mPut TNC in Un-attended mode...\33[0m")
+        print("\33[0;33mPut TNC in Un-attended mode...\33[1;37m\33[0m")
         ser.write(b'\x00\x01\x01\x4d\x4e') # ^MN
         ser.readline()
         ser.write(b'\x00\x01\x06\x55\x31\x41\x77\x61\x79\x21') # U1 Away!
@@ -407,4 +414,4 @@ if __name__ == "__main__":
         ser.close()
         sys.exit()
     except Exception as e:
-        print("\33[1;31m " + repr(e) + "\33[0m")
+        print("\33[0;31m " + repr(e) + "\33[1;37m\33[0m")
