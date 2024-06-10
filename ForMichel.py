@@ -375,7 +375,7 @@ def init_tncConfig():
             ser.write(all_bytes)
             ser.readline()
             # Set Callsign I for every channel Y
-            callsign_str = config.get('tncinit', '17')
+            callsign_str = 'I ' + config.get('radio', 'mycall')
             callsign_len = len(callsign_str)
             callsign_len_hex = '0' + str(callsign_len -1)
             callsign_len_byte = bytearray.fromhex(callsign_len_hex)
@@ -403,7 +403,10 @@ def init_tncConfig():
             ser.write(now_time)
             ser.readline()
         else:
-            all_bytes = send_init_tnc(config.get('tncinit', str(x)),0,1)
+            if x == 17:
+                all_bytes = send_init_tnc('I ' + config.get('radio', 'mycall'),0,1)
+            else:
+                all_bytes = send_init_tnc(config.get('tncinit', str(x)),0,1)
             ser.write(all_bytes)
             ser.readline()
     print('\33[0;33mTNC Active and listening...\33[0m')
@@ -591,6 +594,11 @@ if __name__ == "__main__":
 
     init_tncinWa8ded()
     init_tncConfig()
+
+    myqth = ''
+    if config.get('radio', 'latitude') != '' and config.get('radio', 'longitude') != '':
+        myqth = LatLon2qth(float(config.get('radio', 'latitude')),float(config.get('radio', 'longitude')))[:-2]
+        print("\33[0;33mRadio QTH set to " + myqth)
 
     meshtastic_interface = connect_meshtastic()
     # need do a meshtastic_interface.nodes
