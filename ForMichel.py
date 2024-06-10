@@ -149,20 +149,26 @@ async def sendmsg(chan, cmd, message):
 
 #------------------------------------------------------------- Console Chat ---------------------------------------------------------------------------
 
+async def main():
+    pub.subscribe(
+        on_meshtastic_message, "meshtastic.receive", loop=asyncio.get_event_loop()
+    )
+    pub.subscribe(
+        on_lost_meshtastic_connection,
+        "meshtastic.connection.lost",
+    )
+    while True:
+        text = await ainput("")
+        await sendmsg(0,'echo',text[:-1])
+        _print('\033[1A' + '\033[K', end='')
+        print("[Console] " + text[:-1])
+        sendqueue.append([0,text[:-1]])
+
 async def ainput(string: str) -> str:
     await asyncio.get_event_loop().run_in_executor(
             None, lambda s=string: sys.stdout.write(s+' '))
     return await asyncio.get_event_loop().run_in_executor(
             None, sys.stdin.readline)
-
-async def cleaner():
-    while True:
-        await asyncio.sleep(60 * BEACONDELAY)
-        gc.collect()
-        # no beacon between 1 & 10
-        date = datetime.now()
-        if 1 <= int(date.hour) >= 10:
-            sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
 
 #----------------------------------------------------------- Meshtastic Lora Con ------------------------------------------------------------------------
 
@@ -273,9 +279,9 @@ def on_meshtastic_message(packet, loop=None):
                 text_line2 += "longitude " + str(round(text["longitude"],4)) + " "
                 qth = LatLon2qth(round(text["latitudeI"] / 10000000,6), round(text["longitude"],6))
                 text_line2 += "(" + qth + ") "
-                date = datetime.now()
-                if 1 <= int(date.hour) >= 10:
-                    sendqueue.append([0,'[LoraNET] Position beacon from ' + text_line1 + ' QTH ' + qth])
+                # date = datetime.now()
+                # if int(date.hour) > 9:
+                sendqueue.append([0,'[LoraNET] Position beacon from ' + text_line1 + ' QTH ' + qth])
             if "altitude" in text:
                 text_line2 += "altitude " + str(text["altitude"]) + "m "
             logLora(packet["fromId"], ['POSITION_APP', text["latitudeI"], text["longitude"], text["altitude"]])
@@ -556,21 +562,16 @@ def LatLon2qth(latitude, longitude):
             lat = 10 * b[1]
     return locator
 
-#---------------------------------------------------------------- Start Mains -----------------------------------------------------------------------------
-async def main():
-    pub.subscribe(
-        on_meshtastic_message, "meshtastic.receive", loop=asyncio.get_event_loop()
-    )
-    pub.subscribe(
-        on_lost_meshtastic_connection,
-        "meshtastic.connection.lost",
-    )
+async def cleaner():
     while True:
-        text = await ainput("")
-        await sendmsg(0,'echo',text[:-1])
-        _print('\033[1A' + '\033[K', end='')
-        print("[Console] " + text[:-1])
-        sendqueue.append([0,text[:-1]])
+        await asyncio.sleep(60 * BEACONDELAY)
+        gc.collect()
+        # no beacon between 1 & 10
+        # date = datetime.now()
+        # if 1 <= int(date.hour) >= 10:
+        sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
+
+#---------------------------------------------------------------- Start Mains -----------------------------------------------------------------------------
 
 if __name__ == "__main__":
     os.system("")
