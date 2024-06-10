@@ -26,6 +26,7 @@ import serial
 import configparser
 
 from logParser import logParser
+import pickle 
 
 def num2byte(number):
     return bytearray.fromhex("{0:#0{1}x}".format(number,4)[2:])
@@ -33,46 +34,36 @@ def num2byte(number):
 config = configparser.ConfigParser()
 config.read('./config.ini')
 
-MYPORT = 8765
-MIME_TYPES = {"html": "text/html", "js": "text/javascript", "css": "text/css", "json": "text/json"}
-USERS = set()
-BEACONDELAY = int(config.get('radio', 'beacon_time'))
-BEACONTEXT = config.get('radio', 'beacon_text')
-ACTIVECHAN = num2byte(0)
-ACTCHANNELS = {0: 'CQ'}
+#------------------------------------------------------------- Log Files Loads ---------------------------------------------------------------------------
 
 Chan_Hist = {}
 Moni_Hist = {}
 MHeard    = {}
-MHeardPath = 'MHeard.json'
-MHeardExist =  os.path.exists(MHeardPath)
+LoraDB    = {}
+MHeardPath = 'MHeard.pkl'
+LoraDBPath = 'LoraDB.pkl'
 
 today_date = date.today()
 time_now = datetime.now()
 
 channels = config.get('tncinit', '3')
 callsign = ""
-x = 0
 polling = 1
 channel_to_read_byte = b'x00'
 
-ser = serial.Serial()
-ser.port = config.get('intertnc', 'serial_port')
-ser.baudrate = config.get('intertnc', 'serial_baud')
-ser.bytesize = serial.EIGHTBITS     # number of bits per bytes
-ser.parity = serial.PARITY_NONE     # set parity check: no parity
-ser.stopbits = serial.STOPBITS_ONE  # number of stop bits
-# ser.timeout = None                # block read
-ser.timeout = 0.05                  # non blocking read
-ser.xonxoff = False                 # disable software flow control
-ser.rtscts = False                  # disable hardware (RTS/CTS) flow control
-ser.dsrdtr = False                  # disable hardware (DSR/DTR) flow control
-ser.writeTimeout = 2                # timeout for write
+if os.path.exists(LoraDBPath):
+    with open(LoraDBPath, 'rb') as f:
+        LoraDB = pickle.load(f)
 
-if MHeardExist:
-    MHLoad = logParser.loadJson(MHeardPath, 'MH')
-    # print(MHLoad)
+if os.path.exists(MHeardPath):
+    with open(MHeardPath, 'rb') as f:
+        MHeard = pickle.load(f)
 
+#------------------------------------------------------------- Websocket & HTTP ---------------------------------------------------------------------------
+
+MYPORT = 8765
+MIME_TYPES = {"html": "text/html", "js": "text/javascript", "css": "text/css", "json": "text/json"}
+USERS = set()
 
 async def process_request(sever_root, path, request_headers):
     if "Upgrade" in request_headers:
@@ -111,11 +102,9 @@ async def register(websocket):
     await sendmsg(0,'cmd1','I:' + tmp)
 
 async def unregister(websocket):
-    global ACTIVECHAN
     global USERS
     print("[Network]\33[32m WebSocket connection closed for", str(websocket.remote_address)[1:-1].replace('\'','').replace(', ',':') + "\33[0m")
     USERS.remove(websocket)
-    ACTIVECHAN = num2byte(0)
 
 async def mysocket(websocket, path):
     global ACTIVECHAN
@@ -137,10 +126,12 @@ async def mysocket(websocket, path):
                     await sendmsg(tmp2,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
             else:
                 print("[Network] " + message + "\33[0m")
-                await sendmsg(0,'echo',message)
-                beacon = send_tnc(message + '\r', 0)
-                ser.write(beacon)
-                ser.readline()
+                ch = int(ACTIVECHAN.hex(), 16)
+                await sendmsg(ch,'echo',message)
+                sendqueue.append([ch,message])
+                # beacon = send_tnc(message + '\r', 0)
+                # ser.write(beacon)
+                # ser.readline()
     except Exception as e:
         print("[Network] \33[1;31m" + repr(e))
     finally:
@@ -156,16 +147,7 @@ async def sendmsg(chan, cmd, message):
         except Exception as e:
             print("[Network] \33[1;31m" + repr(e))
 
-async def main():
-    global ACTIVECHAN
-    while True:
-        text = await ainput("")
-        await sendmsg(0,'echo',text[:-1])
-        _print('\033[1A' + '\033[K', end='')
-        print("[Console] " + text[:-1])
-        beacon = send_tnc(text[:-1], 0)
-        ser.write(beacon)
-        ser.readline()
+#------------------------------------------------------------- Console Chat ---------------------------------------------------------------------------
 
 async def ainput(string: str) -> str:
     await asyncio.get_event_loop().run_in_executor(
@@ -177,9 +159,170 @@ async def cleaner():
     while True:
         await asyncio.sleep(60 * BEACONDELAY)
         gc.collect()
-        beacon = send_tnc(BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime()) + '\r', 0)
-        ser.write(beacon)
-        ser.readline()
+        # no beacon between 1 & 10
+        date = datetime.now()
+        if 1 <= int(date.hour) >= 10:
+            sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
+
+#----------------------------------------------------------- Meshtastic Lora Con ------------------------------------------------------------------------
+
+import meshtastic.tcp_interface
+from pubsub import pub
+meshtastic_client = None
+lora_lastmsg = ''
+
+def connect_meshtastic(force_connect=False):
+    global meshtastic_client
+    if meshtastic_client and not force_connect:
+        return meshtastic_client
+    meshtastic_client = None
+    # Initialize Meshtastic interface
+    retry_limit = 3
+    attempts = 1
+    successful = False
+    target_host = config.get('meshtastic', 'host')
+    print("[LoraNet] Connecting to host " + target_host + "...")
+    while not successful and attempts <= retry_limit:
+        try:
+            meshtastic_client = meshtastic.tcp_interface.TCPInterface(hostname=target_host)
+            successful = True
+        except Exception as e:
+            attempts += 1
+            if attempts <= retry_limit:
+                print("[LoraNet] Attempt #{attempts-1} failed. Retrying in {attempts} secs... {e}")
+                time.sleep(attempts)
+            else:
+                print("[LoraNet] Could not connect: {e}")
+                return None
+
+    nodeInfo = meshtastic_client.getMyNodeInfo()
+    print("[LoraNet] Connected to " + nodeInfo['user']['id'] + " > "  + nodeInfo['user']['shortName'] + " / " + nodeInfo['user']['longName'] + " using a " + nodeInfo['user']['hwModel'])
+    logLora(nodeInfo['user']['id'], ['NODEINFO_APP', nodeInfo['user']['shortName'], nodeInfo['user']['longName'], nodeInfo['user']["macaddr"],nodeInfo['user']['hwModel']])
+    return meshtastic_client
+
+def on_lost_meshtastic_connection(interface):
+    print("[LoraNet] Lost connection. Reconnecting...")
+    connect_meshtastic(force_connect=True)
+
+def logLora(nodeID, info):
+    tnow = int(time.time())
+    if nodeID in LoraDB:
+        LoraDB[nodeID][0] = tnow # time last seen
+    else:
+        LoraDB[nodeID] = [tnow, '', '', '', '', '', '', '', tnow]
+    if info[0] == 'NODEINFO_APP':
+        LoraDB[nodeID][1] = info[1] # short name
+        LoraDB[nodeID][2] = info[2] # long name
+        LoraDB[nodeID][6] = info[3] # mac adress
+        LoraDB[nodeID][7] = info[4] # hardware
+    elif info[0] == 'POSITION_APP':
+        LoraDB[nodeID][3] = info[1] # latitude
+        LoraDB[nodeID][4] = info[2] # longitude
+        LoraDB[nodeID][5] = info[3] # altitude
+
+# import yaml
+
+def on_meshtastic_message(packet, loop=None):
+    global lora_lastmsg
+    # print(yaml.dump(packet))
+    sender = packet["fromId"]
+    text_line1 = sender
+    text_line2 = ''
+    if sender in LoraDB:
+        text_line1 = LoraDB[sender][1] + " (" + LoraDB[sender][2] + ") " + sender
+
+    if "text" in packet["decoded"] and packet["decoded"]["portnum"] == "TEXT_MESSAGE_APP":
+        text = packet["decoded"]["text"]
+        channel = 0
+        if "channel" in packet:
+            channel = packet["channel"]
+        text_line2 = "(" + str(channel) + ") " + text
+        logLora(packet["fromId"],['UPDATETIME'])
+    elif "decoded" in packet and packet["decoded"]["portnum"] == "TELEMETRY_APP":
+        text = packet["decoded"]["telemetry"]
+        if "deviceMetrics" in text:
+            text = packet["decoded"]["telemetry"]["deviceMetrics"]
+            text_line2 = "Metrics data : "
+            if "voltage" in text:
+                text_line2 += "Power " + str(round(text["voltage"],2)) + "v "
+            if "batteryLevel" in text:
+                text_line2 += "Battery " + str(text["batteryLevel"]) + "% "
+            if "channelUtilization" in text:
+                text_line2 += "ChUtil " + str(round(text["channelUtilization"],2)) + "% "
+            if "airUtilTx" in text:
+                text_line2 += "UtilTx " + str(round(text["airUtilTx"],2)) + "% "
+            # ["batteryLevel"] ["voltage"] ["channelUtilization"] ["airUtilTx"] ["uptimeSeconds"]    
+            logLora(packet["fromId"],['UPDATETIME'])
+        elif "environmentMetrics" in text:
+            text = packet["decoded"]["telemetry"]["environmentMetrics"]
+            text_line2 = "Environment data : "
+            if "temperature" in text:
+                text_line2 += "Temperature " + str(round(text["temperature"],1)) + "°C "
+            if "relativeHumidity" in text:
+                text_line2 += "Humidity " + str(round(text["relativeHumidity"],1)) + "% "
+            if "barometricPressure" in text:
+                text_line2 += "Barometric " + str(round(text["barometricPressure"],2)) + "hpa "
+            logLora(packet["fromId"],['UPDATETIME'])
+    elif "decoded" in packet and packet["decoded"]["portnum"] == "POSITION_APP":
+        text = packet["decoded"]["position"]
+        if "altitude" in text:
+            text_line2 = "Position data : "
+            if "latitudeI" in text:
+                text_line2 += "latitude " + str(round(text["latitudeI"] / 10000000,4)) + " "
+            if "longitude" in text:
+                text_line2 += "longitude " + str(round(text["longitude"],4)) + " "
+                qth = LatLon2qth(round(text["latitudeI"] / 10000000,6), round(text["longitude"],6))
+                text_line2 += "(" + qth + ") "
+                date = datetime.now()
+                if 1 <= int(date.hour) >= 10:
+                    sendqueue.append([0,'[LoraNET] Position beacon from ' + text_line1 + ' QTH ' + qth])
+            if "altitude" in text:
+                text_line2 += "altitude " + str(text["altitude"]) + "m "
+            logLora(packet["fromId"], ['POSITION_APP', text["latitudeI"], text["longitude"], text["altitude"]])
+            # ["latitudeI"] ["longitude"] ["altitude"] ["time"] ["precisionBits"]
+    # elif "decoded" in packet and packet["decoded"]["portnum"] == "NEIGHBORINFO_APP":
+    # elif "decoded" in packet and packet["decoded"]["portnum"] == "ROUTING_APP":
+    elif "decoded" in packet and packet["decoded"]["portnum"] == "NODEINFO_APP":
+         text = packet["decoded"]["user"]
+         if "shortName" in text:
+             lora_sn = text["shortName"] 
+             lora_ln = text["longName"]
+             lora_mc = text["macaddr"]
+             lora_mo = text["hwModel"]
+             text_line2 = "Node Info : Short name " + lora_sn + " Long name " + lora_ln + " using a " + lora_mo
+             logLora(packet["fromId"], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
+    if text_line2 != '' and lora_lastmsg != text_line2:
+        lora_lastmsg = text_line2
+        if "viaMqtt" in packet:
+            print("[LoraNet]\33[0;37m mqtt " + text_line1 + "\33[0m")
+        else:
+            print("[LoraNet]\33[0;37m fm " + text_line1 + "\33[0m")
+        _print('\33[0;32m                     ' + text_line2 + '\33[0m')
+
+#-------------------------------------------------------------- TNC WA8DED ---------------------------------------------------------------------------
+BEACONDELAY = int(config.get('radio', 'beacon_time'))
+BEACONTEXT = config.get('radio', 'beacon_text')
+ACTIVECHAN = num2byte(0)
+ACTCHANNELS = {0: 'CQ'}
+
+sendqueue = []
+channels = config.get('tncinit', '3')
+callsign = ""
+polling = 1
+channel_to_read_byte = b'x00'
+
+ser = serial.Serial()
+ser.port = config.get('intertnc', 'serial_port')
+ser.baudrate = config.get('intertnc', 'serial_baud')
+ser.bytesize = serial.EIGHTBITS     # number of bits per bytes
+ser.parity = serial.PARITY_NONE     # set parity check: no parity
+ser.stopbits = serial.STOPBITS_ONE  # number of stop bits
+# ser.timeout = None                # block read
+ser.timeout = 0.05                  # non blocking read
+ser.xonxoff = False                 # disable software flow control
+ser.rtscts = False                  # disable hardware (RTS/CTS) flow control
+ser.dsrdtr = False                  # disable hardware (DSR/DTR) flow control
+ser.writeTimeout = 2                # timeout for write
 
 # Set TNC in WA8DED Hostmode
 def init_tncinWa8ded():
@@ -192,7 +335,7 @@ def init_tncinWa8ded():
     ser.readline()
     ser.write(b'\x4a\x48\x4f\x53\x54\x31\x0d')
     print('\33[0;33mSetting TNC in hostmode...\33[0m')
-    ser.readline()
+    print("[ DEBUG ] " + ser.readline().decode())
 
 def send_init_tnc(command, chan, cmd):
     length_command = len(command) - 1
@@ -223,6 +366,7 @@ def send_tnc(command, channel):
 def init_tncConfig():
     global ACTCHANNELS
     ACTCHANNELS = {}
+    x = 0
     for x in range(1, 18):
         if x == 2:
             ACTCHANNELS[0] = config.get('tncinit', '2')[2:]
@@ -263,20 +407,20 @@ def init_tncConfig():
             ser.write(all_bytes)
             ser.readline()
     print('\33[0;33mTNC Active and listening...\33[0m')
-    beacon = send_tnc(BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime()) + '\r', 0)
-    ser.write(beacon)
-    ser.readline()
+    sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
 
 async def go_serial():
     # serial port stuff here
     global polling
     global ACTIVECHAN
     polling = 1
+    x = 0
     while True:
         for x in range(int(channels[2:])):
             if polling == 1:
                 ser.write(b'\xff\x01\x00G')
                 polling_data = ser.readline()
+                await asyncio.sleep(0.016)
                 # print('IS 0000 > ' + polling_data.hex())
 
             if polling_data.hex() == '0000ff0100' or polling_data.hex() == '':
@@ -292,31 +436,34 @@ async def go_serial():
                     chan_i = 0
 
                 poll_byte = num2byte(chan_i)
+
                 ser.write(poll_byte + b'\x01\x00G')
                 data = ser.readline()
                 if data == '':
                     polling = 1
+                    print("We got noting, is there a TNC?")
                     break
                 # print('IS 0000 > ' + data.hex())
 
-                data_int = int(data.hex()[2:4], 16)
+                data_int = int(data.hex()[2:4])
                 namechan = '[Monitor]'
                 if chan_i != 0:
                     namechan = '[Chan %02d]' % (chan_i,)
 
                 if data_int == 0:
                     # print("Status : Succes with NoInfo")
-                    # print(namechan + " \33[37m" + data.decode() + "\33[0m")
                     polling = 1
                 elif data_int == 1:
                     # print("Succes with Messages")
                     data_decode = (codecs.decode(data, 'cp850')[1:])
-                    print(namechan + " \33[1;32m" + data_decode + "\33[0m")
+                    print(namechan + " [1] \33[1;32m" + data_decode + "\33[0m")
+                    print("[ DEBUG ] " + data.hex())
                     await sendmsg(chan_i,'cmd1',"OK: " + data_decode)
                 elif data_int == 2:
                     # print("Failure with Messages")
-                    data_decode = (codecs.decode(data, 'cp850')[1:])
-                    print(namechan + " \33[1;31m" + data_decode + "\33[0m")
+                    data_decode = (codecs.decode(data, 'cp850')[2:])
+                    print(namechan + " [2] \33[1;31m" + data_decode + "\33[0m")
+                    print("[ DEBUG ] " + data.hex())
                     await sendmsg(chan_i,'cmd2',"Error: " + data_decode)
                 elif data_int == 3:
                     # print("Link Status")
@@ -373,6 +520,54 @@ async def go_serial():
             await sendmsg(chan_i,'cmd1','L:' + tmp)
             tmp = int(psutil.Process(os.getpid()).memory_info().rss)
             await sendmsg(chan_i,'cmd1','@MEM:' + str(tmp))
+            # Lets check if we have a queue to send and if so, send it
+            if len(sendqueue) > 0:
+                await asyncio.sleep(0.016)
+                todo = (sendqueue[0])
+                sendqueue.pop(0)
+                beacon = send_tnc(todo[1] + '\r', todo[0])
+                ser.write(beacon)
+                ser.readline()
+
+#-------------------------------------------------------------- Side Functions ---------------------------------------------------------------------------
+def LatLon2qth(latitude, longitude):
+    A = ord('A')
+    a = divmod(longitude + 180, 20)
+    b = divmod(latitude + 90, 10)
+    locator = chr(A + int(a[0])) + chr(A + int(b[0]))
+    lon = a[1] / 2.0
+    lat = b[1]
+    A = ord('a')
+    i = 1
+    while i < 5:
+        i += 1
+        a = divmod(lon, 1)
+        b = divmod(lat, 1)
+        if not (i % 2):
+            locator += str(int(a[0])) + str(int(b[0]))
+            lon = 24 * a[1]
+            lat = 24 * b[1]
+        else:
+            locator += chr(A + int(a[0])) + chr(A + int(b[0]))
+            lon = 10 * a[1]
+            lat = 10 * b[1]
+    return locator
+
+#---------------------------------------------------------------- Start Mains -----------------------------------------------------------------------------
+async def main():
+    pub.subscribe(
+        on_meshtastic_message, "meshtastic.receive", loop=asyncio.get_event_loop()
+    )
+    pub.subscribe(
+        on_lost_meshtastic_connection,
+        "meshtastic.connection.lost",
+    )
+    while True:
+        text = await ainput("")
+        await sendmsg(0,'echo',text[:-1])
+        _print('\033[1A' + '\033[K', end='')
+        print("[Console] " + text[:-1])
+        sendqueue.append([0,text[:-1]])
 
 if __name__ == "__main__":
     os.system("")
@@ -397,6 +592,10 @@ if __name__ == "__main__":
     init_tncinWa8ded()
     init_tncConfig()
 
+    meshtastic_interface = connect_meshtastic()
+    # need do a meshtastic_interface.nodes
+    # this reurns an list of node's known to the device
+
     try:
         loop = asyncio.get_event_loop()
         asyncio.ensure_future(go_serial())
@@ -406,7 +605,11 @@ if __name__ == "__main__":
         loop.create_task(cleaner())
         loop.run_forever()
     except KeyboardInterrupt:
-        logParser.saveJson(MHeardPath, MHeard, 'MH')
+        with open(LoraDBPath, 'wb') as f:
+            pickle.dump(LoraDB, f)
+        with open(MHeardPath, 'wb') as f:
+            pickle.dump(MHeard, f)
+        # logParser.saveJson(MHeardPath, MHeard, 'MH')
         print('Saved MHeard.json')
         print("\33[0;33mPut TNC in Un-attended mode...\33[1;37m\33[0m")
         ser.write(b'\x00\x01\x01\x4d\x4e') # ^MN
