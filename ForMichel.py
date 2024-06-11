@@ -117,16 +117,10 @@ async def register(websocket):
     tmp = ser.readline()[2:-1].decode()
     await sendmsg(0,'cmd1','I:' + tmp)
     await asyncio.sleep(0.016)
-    # Send mHeard Database
-    tlast = int(time.time())
-    await sendmsg(100,'cmd100',json.dumps(MHeard).replace('\"','\\\"'))
-    await asyncio.sleep(0.016)
-    # Send Lora Heard Database
-    # await sendmsg(100,'loraHeard',json.dumps(LoraDB).replace('\"','\\\"'))
-    # await asyncio.sleep(0.016)
     if monitorbuffer:
         for lines in monitorbuffer:
             await websocket.send(json.dumps(lines[0]))
+    await asyncio.sleep(0.016)
     if channelbuffers:
         for lines in channelbuffers:
             await websocket.send(json.dumps(lines[0]))
@@ -159,9 +153,6 @@ async def mysocket(websocket, path):
                 ch = int(ACTIVECHAN.hex(), 16)
                 await sendmsg(ch,'echo',message)
                 sendqueue.append([ch,message])
-                # beacon = send_tnc(message + '\r', 0)
-                # ser.write(beacon)
-                # ser.readline()
     except Exception as e:
         print("[Network] \33[1;31m" + repr(e))
     finally:
