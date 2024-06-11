@@ -40,8 +40,14 @@ Chan_Hist = {}
 Moni_Hist = {}
 MHeard    = {}
 LoraDB    = {}
+
 MHeardPath = 'MHeard.pkl'
 LoraDBPath = 'LoraDB.pkl'
+MoniLogPath = 'MoniLog.pk1'
+ChanLogPath = 'ChanLog.pk1'
+
+monitorbuffer = []
+channelbuffers = []
 
 today_date = date.today()
 time_now = datetime.now()
@@ -58,6 +64,14 @@ if os.path.exists(LoraDBPath):
 if os.path.exists(MHeardPath):
     with open(MHeardPath, 'rb') as f:
         MHeard = pickle.load(f)
+
+if os.path.exists(MoniLogPath):
+    with open(MoniLogPath, 'rb') as f:
+        monitorbuffer = pickle.load(f)
+
+if os.path.exists(ChanLogPath):
+    with open(ChanLogPath, 'rb') as f:
+        channelbuffers = pickle.load(f)
 
 #------------------------------------------------------------- Websocket & HTTP ---------------------------------------------------------------------------
 
@@ -92,14 +106,24 @@ async def process_request(sever_root, path, request_headers):
 
 async def register(websocket):
     global USERS
+    global tlast
     print("[Network]\33[32m New WebSocket connection from", str(websocket.remote_address)[1:-1].replace('\'','').replace(', ',':') + "\33[0m")
     USERS.add(websocket)
     ser.write(b'\x00\x01\x00\x4D')
     tmp = ser.readline()[2:-1].decode()
     await sendmsg(0,'cmd1','M:' + tmp)
+    await asyncio.sleep(0.016)
     ser.write(b'\x00\x01\x00\x49')
     tmp = ser.readline()[2:-1].decode()
     await sendmsg(0,'cmd1','I:' + tmp)
+    await asyncio.sleep(0.016)
+    # Send mHeard Database
+    tlast = int(time.time())
+    await sendmsg(100,'cmd100',json.dumps(MHeard).replace('\"','\\\"'))
+    await asyncio.sleep(0.016)
+    # Send Lora Heard Database
+    await sendmsg(100,'loraHeard',json.dumps(LoraDB).replace('\"','\\\"'))
+    await asyncio.sleep(0.016)
 
 async def unregister(websocket):
     global USERS
@@ -147,16 +171,32 @@ async def sendmsg(chan, cmd, message):
         except Exception as e:
             print("[Network] \33[1;31m" + repr(e))
 
+    if cmd != 'cmd1' and cmd != 'cmd2' and cmd != 'cmd3' and cmd != 'cmd100':
+        tmp = {}
+        tmp['time'] = timenow
+        tmp['chan'] = chan
+        tmp['cmd']  = cmd
+        tmp['data'] = message;
+        if chan == 0:
+            monitorbuffer.append([tmp])
+            if len(monitorbuffer) > 300:
+                monitorbuffer.pop(0)
+        else:
+            channelbuffers.append([tmp]);
+            if len(channelbuffers) > 500:
+                channelbuffers.pop(0)
+
 #------------------------------------------------------------- Console Chat ---------------------------------------------------------------------------
 
 async def main():
-    pub.subscribe(
-        on_meshtastic_message, "meshtastic.receive", loop=asyncio.get_event_loop()
-    )
-    pub.subscribe(
-        on_lost_meshtastic_connection,
-        "meshtastic.connection.lost",
-    )
+    if config.get('meshtastic', 'plugin_enable') == 'True':
+        pub.subscribe(
+            on_meshtastic_message, "meshtastic.receive", loop=asyncio.get_event_loop()
+        )
+        pub.subscribe(
+            on_lost_meshtastic_connection,
+            "meshtastic.connection.lost",
+        )
     while True:
         text = await ainput("")
         await sendmsg(0,'echo',text[:-1])
@@ -291,7 +331,7 @@ def on_meshtastic_message(packet, loop=None):
                 text_line2 += "longitude " + str(round(text["longitude"],4)) + " "
                 qth = LatLon2qth(round(text["latitudeI"] / 10000000,6), round(text["longitude"],6))
                 text_line2 += "(" + qth + ") "
-                if not is_hour_between(1, 10):
+                if not is_hour_between(1, 10) and "viaMqtt" not in packet:
                     sendqueue.append([0,'[LoraNET] Position beacon from ' + text_line1 + ' QTH ' + qth])
             if "altitude" in text:
                 text_line2 += "altitude " + str(text["altitude"]) + "m "
@@ -329,6 +369,7 @@ channels = config.get('tncinit', '3')
 callsign = ""
 polling = 1
 channel_to_read_byte = b'x00'
+tlast = 0
 
 ser = serial.Serial()
 ser.port = config.get('intertnc', 'serial_port')
@@ -342,6 +383,37 @@ ser.xonxoff = False                 # disable software flow control
 ser.rtscts = False                  # disable hardware (RTS/CTS) flow control
 ser.dsrdtr = False                  # disable hardware (DSR/DTR) flow control
 ser.writeTimeout = 2                # timeout for write
+
+def logheard(callsign, cmd, info):
+    tnow = int(time.time())
+
+    # Remove the -Channel if present
+    sindex = callsign.find('-')
+    if sindex > 1:
+        callsign = callsign[:sindex]
+
+    # 'callsign' = ['name','jo locator if known',first heard,last heard,heard count,first connect, last connect, connect count];
+    #                  0              1              2           3           4           5             6             7
+
+    if cmd == 5:
+        if callsign in MHeard:
+            MHeard[callsign][3] = tnow
+            MHeard[callsign][4] += 1
+        else:
+            MHeard[callsign] = ['', '', tnow, tnow, 1, 0, 0, 0]
+            if config.get('radio', 'mycall') == callsign:
+                MHeard[callsign][0] = config.get('radio', 'sysop')
+    elif cmd == 6:
+        if callsign in MHeard:
+            MHeard[callsign][1] = str(info)
+        else:
+            MHeard[callsign] = ['', str(info), tnow, tnow, 1, 0, 0, 0]
+    elif cmd == 3:
+        if callsign in MHeard:
+            MHeard[callsign][6] = tnow
+            MHeard[callsign][7] += 1
+            if MHeard[callsign][5] == 0:
+                MHeard[callsign][5] = tnow
 
 # Set TNC in WA8DED Hostmode
 def init_tncinWa8ded():
@@ -435,6 +507,7 @@ async def go_serial():
     # serial port stuff here
     global polling
     global ACTIVECHAN
+    global tlast
     polling = 1
     x = 0
     while True:
@@ -491,16 +564,34 @@ async def go_serial():
                     # print("Link Status")
                     print(namechan + " \33[0;37m" + data.decode()[2:] + "\33[0m")
                     await sendmsg(chan_i,'chat',data.decode()[2:])
+
+                    if 'DISCONNECTED' in data.decode()[2:]:
+                        weareconnected = 0
+                    elif 'CONNECTED' in data.decode()[2:]:
+                        weatherbeacon = 1
+                        logheard(data.decode()[2:].split(" ")[5], 3, '')
+
                 elif data_int == 4:
                     # print("Monitor Header NoInfo")
                     print(namechan + " \33[1;37m" + data.decode()[2:] + "\33[0m")
                     await sendmsg(chan_i,'cmd4',data.decode()[2:])
                 elif data_int == 5:
                     # print("Monitor Header With Info")
-                    print(namechan + " \33[1;37m" + data.decode()[2:] + "\33[0m")
+                    
                     #need check mheard if new or not and appent to msg *NEW*
-                    await sendmsg(chan_i,'cmd5',data.decode()[2:-1])
-                    callsign = data.decode()[2:].split()[1]
+                    callsign = data.decode()[2:].split(" ")[1]
+                    sindex = callsign.find('-')
+                    if sindex > 1:
+                        callsign = callsign[:sindex]
+                    
+                    heardnew = ''
+                    if callsign not in MHeard:
+                        heardnew = ' * NEW *'
+
+                    logheard(callsign, 5, '');
+                    print(namechan + " \33[1;37m" + data.decode()[2:] + heardnew + "\33[0m")
+                    await sendmsg(chan_i,'cmd5',data.decode()[2:-1] + heardnew)
+                    heardnew = callsign
                 elif data_int == 6:
                     data_decode = (codecs.decode(data, 'cp850')[3:])
                     data_out = data_decode.splitlines()
@@ -509,11 +600,17 @@ async def go_serial():
                         _print('                     ' + lines)
                         await sendmsg(chan_i,'warn',lines)
                     _print('\33[0m', end='')
-                    #locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}', data_decode.upper())
-                    # if locator == []:
-                    #     logheard(callsign, 6, '')
-                    # else:
-                    #     logheard(callsign, 6, locator[0])
+                    
+                    locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}[0-9]{2}', data_decode.upper())
+                    if not locator:
+                        locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}', data_decode.upper())
+                    
+                    if not locator:
+                         logheard(callsign, 6, '')
+                    else:
+                         logheard(callsign, 6, locator[0])
+                    
+                    heardnew = ''
                 elif data_int == 7:
                     # print("Connect information")
                     # This should not be on monitor
@@ -550,8 +647,14 @@ async def go_serial():
                 beacon = send_tnc(todo[1] + '\r', todo[0])
                 ser.write(beacon)
                 ser.readline()
+            # And because we need to, send the mheard ever 15 full sec?
+            tnow = int(time.time())
+            if tnow > tlast + 15:
+                tlast = tnow
+                await sendmsg(100,'cmd100',json.dumps(MHeard).replace('\"','\\\"'))
 
 #-------------------------------------------------------------- Side Functions ---------------------------------------------------------------------------
+
 def LatLon2qth(latitude, longitude):
     A = ord('A')
     a = divmod(longitude + 180, 20)
@@ -587,6 +690,7 @@ weatherbeacon = True
 myqth = 'JO32'
 
 async def cleaner():
+    global weatherbeacon
     while True:
         await asyncio.sleep(60 * BEACONDELAY)
         # no beacon between 1 & 10
@@ -596,7 +700,7 @@ async def cleaner():
                 weatherbeacon = True
             else:
                 weatherurl = config.get('radio', 'weatherjson')
-                if weatherurl != '' and config.get('radio', 'weatherbeacon') == True:
+                if weatherurl != '' and config.get('radio', 'weatherbeacon') == 'True':
                     try:
                         url = urllib.request.urlopen(weatherurl)
                         wjson = json.load(url)
@@ -604,10 +708,19 @@ async def cleaner():
                         wtet  = winddir[round(int(wjson['winddir_avg10m'])*16/360)]
                         sendqueue.append([0,'Weather at ' + myqth + ', Wind ' + wtet + ' ' + str(wjson['windspeedbf_avg10m']) + 'bf, Temp ' + str(round(wjson['tempc'])) + 'C, Hum ' + str(wjson['humidity']) + '%, Baro ' + str(round(wjson['baromabshpa'])) + 'hpa @ ' + time.strftime("%H:%M", time.localtime())])
                     except:
+                        print('[ DEBUG ] Weather Grab from ' + weatherurl + ' Failed!')
                         sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
                 else:
                     sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
                 weatherbeacon = False
+        # Save Databases...
+        with open(LoraDBPath, 'wb') as f:
+            pickle.dump(LoraDB, f)
+        with open(MHeardPath, 'wb') as f:
+            pickle.dump(MHeard, f)
+        # Save Monitor and Channels
+
+        # Memory Cleaner...
         gc.collect()
 
 #---------------------------------------------------------------- Start Mains -----------------------------------------------------------------------------
@@ -639,9 +752,11 @@ if __name__ == "__main__":
         myqth = LatLon2qth(float(config.get('radio', 'latitude')),float(config.get('radio', 'longitude')))[:-2]
         print("\33[0;33mRadio QTH set to " + myqth)
 
-    meshtastic_interface = connect_meshtastic()
-    # need do a meshtastic_interface.nodes
-    # this reurns an list of node's known to the device
+    if config.get('meshtastic', 'plugin_enable') == 'True':
+        print("\33[0;33mLoading meshtastic plugin...")
+        meshtastic_interface = connect_meshtastic()
+        # need do a meshtastic_interface.nodes
+        # this reurns an list of node's known to the device
 
     try:
         loop = asyncio.get_event_loop()
@@ -652,11 +767,16 @@ if __name__ == "__main__":
         loop.create_task(cleaner())
         loop.run_forever()
     except KeyboardInterrupt:
+        # Databases...
         with open(LoraDBPath, 'wb') as f:
             pickle.dump(LoraDB, f)
         with open(MHeardPath, 'wb') as f:
             pickle.dump(MHeard, f)
-        # logParser.saveJson(MHeardPath, MHeard, 'MH')
+        # Channel Logs..
+        with open(MoniLogPath, 'wb') as f:
+            pickle.dump(monitorbuffer, f)
+        with open(ChanLogPath, 'wb') as f:
+            pickle.dump(channelbuffers, f)
         print('Saved MHeard.json')
         print("\33[0;33mPut TNC in Un-attended mode...\33[1;37m\33[0m")
         ser.write(b'\x00\x01\x01\x4d\x4e') # ^MN
