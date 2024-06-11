@@ -25,7 +25,6 @@ from http import HTTPStatus
 import serial
 import configparser
 
-from logParser import logParser
 import pickle 
 
 def num2byte(number):
