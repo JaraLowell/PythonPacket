@@ -27,6 +27,8 @@ import configparser
 
 import pickle 
 
+from webui import webui
+
 def num2byte(number):
     return bytearray.fromhex("{0:#0{1}x}".format(number,4)[2:])
 
@@ -193,6 +195,10 @@ async def main():
             on_lost_meshtastic_connection,
             "meshtastic.connection.lost",
         )
+
+    my_window = webui.window()
+    my_window.show('http://localhost:%d/' % MYPORT)
+
     while True:
         text = await ainput("")
         await sendmsg(0,'echo',text[:-1])
@@ -751,13 +757,13 @@ dev textchunk(cnktext , chn, callsign):
     cnktext = cnktext.replace('%d', time.strftime("%d/%m/%Y"))                          # %d = current date eg: 25.03.1991
     cnktext = cnktext.replace('%b', )                                                   # %b = Corresponds to the Bell Character (07h) we dont have this ?!
     tmp = ''
-    if os.path.exists(news.txt): tmp = 'There is news via //N'
+    if os.path.exists('txtfiles/news.txt'): tmp = 'There is news via //N'
     cnktext = cnktext.replace('%i', tmp)                                                # %i = is there new news? News
     cnktext = cnktext.replace('%z', datetime.datetime.now().astimezone().strftime("%z"))# %z = The Time Zone of the server
     cnktext = cnktext.replace('%_', '\r')                                               # %_: ends the line and moves the cursor to a new line
     cnktext = cnktext.replace('%>', 'to ' + config.get('radio', 'mycall') + ' >')       # bit like a command prompt place holder at bottom of msg
 
-    if os.path.exists('origin.txt'):
+    if os.path.exists('txtfiles/origin.txt'):
         lines = open('origin.txt').read().splitlines()
         myline = random.choice(lines)
     cnktext = cnktext.replace('%o', myline)                                             # %o = Reads a Line from ORIGIN.GPI (Chosen at Random)
@@ -819,6 +825,8 @@ if __name__ == "__main__":
         loop.create_task(cleaner())
         loop.run_forever()
     except KeyboardInterrupt:
+        my_window.close()
+        webui.exit()
         # Databases...
         with open(LoraDBPath, 'wb') as f:
             pickle.dump(LoraDB, f)
