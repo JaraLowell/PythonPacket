@@ -116,11 +116,11 @@ async def register(websocket):
     ser.write(b'\x00\x01\x00\x49')
     tmp = ser.readline()[2:-1].decode()
     await sendmsg(0,'cmd1','I:' + tmp)
-    await asyncio.sleep(0.05)
+    await asyncio.sleep(0.075)
     if monitorbuffer:
         for lines in monitorbuffer:
             await websocket.send(json.dumps(lines[0]))
-    await asyncio.sleep(0.05)
+    await asyncio.sleep(0.025)
     if channelbuffers:
         for lines in channelbuffers:
             await websocket.send(json.dumps(lines[0]))
@@ -287,10 +287,9 @@ def on_meshtastic_message(packet, loop=None):
         channel = 0
         if "channel" in packet:
             channel = packet["channel"]
-        text_line2 = "(" + str(channel) + ") " + text
-        if config.get('meshtastic', 'relay_chan') == channel or config.get('meshtastic', 'relay_chan') == -1:
-            sendqueue.append([0,'[LoraNET] From ' + sender + ' on Ch ' + str(channel) + ': ' + text])
+        text_line2 = '[Ch ' + str(channel) + ']:\33[1;36m ' + text
         logLora(packet["fromId"],['UPDATETIME'])
+        sendqueue.append([0,'[LoraNET] [Ch ' + str(channel) + '] ' + LoraDB[packet["fromId"]][1] + ': ' + text])
     elif "decoded" in packet and packet["decoded"]["portnum"] == "TELEMETRY_APP":
         text = packet["decoded"]["telemetry"]
         if "deviceMetrics" in text:
@@ -329,7 +328,7 @@ def on_meshtastic_message(packet, loop=None):
                 qth = LatLon2qth(round(text["latitudeI"] / 10000000,6), round(text["longitude"],6))
                 text_line2 += "(" + qth + ") "
                 if not is_hour_between(1, 10) and "viaMqtt" not in packet:
-                    sendqueue.append([0,'[LoraNET] Position beacon from ' + text_line1 + ' QTH ' + qth])
+                    sendqueue.append([0,'[LoraNET] Position beacon from ' + text_line1 + ' QTH ' + qth[:-2]])
             if "altitude" in text:
                 text_line2 += "altitude " + str(text["altitude"]) + "m "
             logLora(packet["fromId"], ['POSITION_APP', text["latitudeI"], text["longitude"], text["altitude"]])
@@ -524,8 +523,9 @@ async def go_serial():
                 polling = 0
 
                 chan_i = int(polling_data.hex()[4:6]) - 1
-                if chan_i < 0:
-                    chan_i = 0
+                # these two vcases should not happen but happen... 
+                if chan_i < 0: chan_i = 0
+                if chan_i > 10 and chan_i < 255: chan_i = 0
 
                 poll_byte = num2byte(chan_i)
 
@@ -574,9 +574,10 @@ async def go_serial():
                     await sendmsg(chan_i,'cmd4',data.decode()[2:])
                 elif data_int == 5:
                     # print("Monitor Header With Info")
-                    
+                    data_decode = (codecs.decode(data, 'cp850')[2:])
+
                     #need check mheard if new or not and appent to msg *NEW*
-                    callsign = data.decode()[2:].split(" ")[1]
+                    callsign = data_decode.split(" ")[1]
                     sindex = callsign.find('-')
                     if sindex > 1:
                         callsign = callsign[:sindex]
@@ -586,17 +587,19 @@ async def go_serial():
                         heardnew = ' * NEW *'
 
                     logheard(callsign, 5, '');
-                    print(namechan + " \33[1;37m" + data.decode()[2:] + heardnew + "\33[0m")
-                    await sendmsg(chan_i,'cmd5',data.decode()[2:-1] + heardnew)
+                    print(namechan + " \33[1;37m" + data_decode + heardnew + "\33[0m")
+                    await sendmsg(chan_i,'cmd5',data_decode[:-1] + heardnew)
                     heardnew = callsign
                 elif data_int == 6:
                     data_decode = (codecs.decode(data, 'cp850')[3:])
                     data_out = data_decode.splitlines()
+                    sendtext = ''
                     _print('\33[1;36m', end='')
                     for lines in data_out:
                         _print('                     ' + lines)
-                        await sendmsg(chan_i,'warn',lines)
+                        sendtext += lines + '\r'
                     _print('\33[0m', end='')
+                    await sendmsg(chan_i,'warn',sendtext[:-1])
                     
                     locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}[0-9]{2}', data_decode.upper())
                     if not locator:
@@ -614,10 +617,12 @@ async def go_serial():
                     data_decode = (codecs.decode(data, 'cp850')[3:])
                     data_out = data_decode.splitlines()
                     _print('\33[1;30m', end='')
+                    sendtext = ''
                     for lines in data_out:
                         _print('                     ' + lines)
-                        await sendmsg(chan_i,'chat',lines)
+                        sendtext += lines + '\r'
                     _print('\33[0m', end='')
+                    await sendmsg(chan_i,'chat',sendtext[:-1])
                 else:
                     print("No data")
                     # pass
