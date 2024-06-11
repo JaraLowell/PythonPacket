@@ -726,6 +726,54 @@ async def cleaner():
             pickle.dump(channelbuffers, f)
         # Memory Cleaner...
         gc.collect()
+"""
+###       T O     D O       ###
+# These now be the preg replaces used in GP
+# Plus the max byte length.
+# this can then be used in file reads, console, web and other inputs send to the tnc
+
+import random
+
+dev textchunk(cnktext , chn, callsign):
+    tmp = ''
+    # Lets do some preg replacing to...
+    cnktext = cnktext.replace('%v', 'PyPacketRadio v1.1')                               # GP version number, in this case it is 1.61
+    cnktext = cnktext.replace('%c', callsign)                                           # %c = The Call of the opposite Station
+    if callsign in mheard:
+        cnktext = cnktext.replace('%n', mheard[callsign][0] + ' ()' + callsign + ')')   # The Name of the opposite Station
+    else:
+        cnktext = cnktext.replace('%n', callsign)
+        tmp = 'Please enter your name via //N yourname'
+    cnktext = cnktext.replace('%?', tmp)                                                # prompts the connected station to report its name if it has not yet included in the list of names (NAMES.GP)
+    cnktext = cnktext.replace('%y', config.get('radio', 'mycall'))                      # %y = One's own Call
+    cnktext = cnktext.replace('%k', str(chn))                                           # %k = channel number on which the text will be broadcast
+    cnktext = cnktext.replace('%t', time.strftime('%H:%M:%S'))                          # %t = T: current GP time in HH:MM:SS format, e.g. 10:41:32
+    cnktext = cnktext.replace('%d', time.strftime("%d/%m/%Y"))                          # %d = current date eg: 25.03.1991
+    cnktext = cnktext.replace('%b', )                                                   # %b = Corresponds to the Bell Character (07h) we dont have this ?!
+    tmp = ''
+    if os.path.exists(news.txt): tmp = 'There is news via //N'
+    cnktext = cnktext.replace('%i', tmp)                                                # %i = is there new news? News
+    cnktext = cnktext.replace('%z', datetime.datetime.now().astimezone().strftime("%z"))# %z = The Time Zone of the server
+    cnktext = cnktext.replace('%_', '\r')                                               # %_: ends the line and moves the cursor to a new line
+    cnktext = cnktext.replace('%>', 'to ' + config.get('radio', 'mycall') + ' >')       # bit like a command prompt place holder at bottom of msg
+
+    if os.path.exists('origin.txt'):
+        lines = open('origin.txt').read().splitlines()
+        myline = random.choice(lines)
+    cnktext = cnktext.replace('%o', myline)                                             # %o = Reads a Line from ORIGIN.GPI (Chosen at Random)
+    cnktext = cnktext.replace('%%', '%')                                                # percent sign
+
+    cnktext = cnktext.replace(/(\r\n|\n|\r)/gm,'\r'))                                   # lets make sure we only use \r as enter
+
+    # Next part we need is tring to parts if string longer then 7f (127) bytes (characters)
+    while len(cnktext) > 127:
+        tmp = cnktext[0:127]
+        cnktext = cnktext[128:]
+        # and send>
+    #do we have left over?
+    if len(cnktext):
+        # and send>
+"""
 
 #---------------------------------------------------------------- Start Mains -----------------------------------------------------------------------------
 
