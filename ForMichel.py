@@ -122,8 +122,14 @@ async def register(websocket):
     await sendmsg(100,'cmd100',json.dumps(MHeard).replace('\"','\\\"'))
     await asyncio.sleep(0.016)
     # Send Lora Heard Database
-    await sendmsg(100,'loraHeard',json.dumps(LoraDB).replace('\"','\\\"'))
-    await asyncio.sleep(0.016)
+    # await sendmsg(100,'loraHeard',json.dumps(LoraDB).replace('\"','\\\"'))
+    # await asyncio.sleep(0.016)
+    if monitorbuffer:
+        for lines in monitorbuffer:
+            await websocket.send(json.dumps(lines[0]))
+    if channelbuffers:
+        for lines in channelbuffers:
+            await websocket.send(json.dumps(lines[0]))
 
 async def unregister(websocket):
     global USERS
@@ -719,7 +725,10 @@ async def cleaner():
         with open(MHeardPath, 'wb') as f:
             pickle.dump(MHeard, f)
         # Save Monitor and Channels
-
+        with open(MoniLogPath, 'wb') as f:
+            pickle.dump(monitorbuffer, f)
+        with open(ChanLogPath, 'wb') as f:
+            pickle.dump(channelbuffers, f)
         # Memory Cleaner...
         gc.collect()
 
