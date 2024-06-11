@@ -116,11 +116,11 @@ async def register(websocket):
     ser.write(b'\x00\x01\x00\x49')
     tmp = ser.readline()[2:-1].decode()
     await sendmsg(0,'cmd1','I:' + tmp)
-    await asyncio.sleep(0.016)
+    await asyncio.sleep(0.05)
     if monitorbuffer:
         for lines in monitorbuffer:
             await websocket.send(json.dumps(lines[0]))
-    await asyncio.sleep(0.016)
+    await asyncio.sleep(0.05)
     if channelbuffers:
         for lines in channelbuffers:
             await websocket.send(json.dumps(lines[0]))
