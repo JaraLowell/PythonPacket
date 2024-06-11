@@ -173,6 +173,7 @@ async def ainput(string: str) -> str:
 #----------------------------------------------------------- Meshtastic Lora Con ------------------------------------------------------------------------
 
 import meshtastic.tcp_interface
+import meshtastic.serial_interface
 from pubsub import pub
 meshtastic_client = None
 lora_lastmsg = ''
@@ -187,10 +188,17 @@ def connect_meshtastic(force_connect=False):
     attempts = 1
     successful = False
     target_host = config.get('meshtastic', 'host')
-    print("[LoraNet] Connecting to host " + target_host + "...")
+    comport = config.get('meshtastic', 'serial_port')
+    cnto = target_host
+    if config.get('meshtastic', 'interface') != 'tcp':
+        cnto = comport
+    print("[LoraNet] Connecting to meshtastic on " + cnto + "...")
     while not successful and attempts <= retry_limit:
         try:
-            meshtastic_client = meshtastic.tcp_interface.TCPInterface(hostname=target_host)
+            if config.get('meshtastic', 'interface') == 'tcp':
+                meshtastic_client = meshtastic.tcp_interface.TCPInterface(hostname=target_host)
+            else:
+                meshtastic_client = meshtastic.serial_interface.SerialInterface(comport)
             successful = True
         except Exception as e:
             attempts += 1
@@ -243,6 +251,8 @@ def on_meshtastic_message(packet, loop=None):
         if "channel" in packet:
             channel = packet["channel"]
         text_line2 = "(" + str(channel) + ") " + text
+        if config.get('meshtastic', 'relay_chan') == channel or config.get('meshtastic', 'relay_chan') == -1:
+            sendqueue.append([0,'[LoraNET] From ' + sender + ' on Ch ' + str(channel) + ': ' + text])
         logLora(packet["fromId"],['UPDATETIME'])
     elif "decoded" in packet and packet["decoded"]["portnum"] == "TELEMETRY_APP":
         text = packet["decoded"]["telemetry"]
@@ -257,7 +267,8 @@ def on_meshtastic_message(packet, loop=None):
                 text_line2 += "ChUtil " + str(round(text["channelUtilization"],2)) + "% "
             if "airUtilTx" in text:
                 text_line2 += "UtilTx " + str(round(text["airUtilTx"],2)) + "% "
-            # ["batteryLevel"] ["voltage"] ["channelUtilization"] ["airUtilTx"] ["uptimeSeconds"]    
+            # ["batteryLevel"] ["voltage"] ["channelUtilization"] ["airUtilTx"] ["uptimeSeconds"]
+            text_line2 = ''
             logLora(packet["fromId"],['UPDATETIME'])
         elif "environmentMetrics" in text:
             text = packet["decoded"]["telemetry"]["environmentMetrics"]
@@ -269,6 +280,7 @@ def on_meshtastic_message(packet, loop=None):
             if "barometricPressure" in text:
                 text_line2 += "Barometric " + str(round(text["barometricPressure"],2)) + "hpa "
             logLora(packet["fromId"],['UPDATETIME'])
+            text_line2 = ''
     elif "decoded" in packet and packet["decoded"]["portnum"] == "POSITION_APP":
         text = packet["decoded"]["position"]
         if "altitude" in text:
@@ -279,15 +291,16 @@ def on_meshtastic_message(packet, loop=None):
                 text_line2 += "longitude " + str(round(text["longitude"],4)) + " "
                 qth = LatLon2qth(round(text["latitudeI"] / 10000000,6), round(text["longitude"],6))
                 text_line2 += "(" + qth + ") "
-                # date = datetime.now()
-                # if int(date.hour) > 9:
-                sendqueue.append([0,'[LoraNET] Position beacon from ' + text_line1 + ' QTH ' + qth])
+                if not is_hour_between(1, 10):
+                    sendqueue.append([0,'[LoraNET] Position beacon from ' + text_line1 + ' QTH ' + qth])
             if "altitude" in text:
                 text_line2 += "altitude " + str(text["altitude"]) + "m "
             logLora(packet["fromId"], ['POSITION_APP', text["latitudeI"], text["longitude"], text["altitude"]])
             # ["latitudeI"] ["longitude"] ["altitude"] ["time"] ["precisionBits"]
-    # elif "decoded" in packet and packet["decoded"]["portnum"] == "NEIGHBORINFO_APP":
-    # elif "decoded" in packet and packet["decoded"]["portnum"] == "ROUTING_APP":
+    elif "decoded" in packet and packet["decoded"]["portnum"] == "NEIGHBORINFO_APP":
+        logLora(packet["fromId"],['UPDATETIME'])
+    elif "decoded" in packet and packet["decoded"]["portnum"] == "ROUTING_APP":
+        logLora(packet["fromId"],['UPDATETIME'])
     elif "decoded" in packet and packet["decoded"]["portnum"] == "NODEINFO_APP":
          text = packet["decoded"]["user"]
          if "shortName" in text:
@@ -295,7 +308,7 @@ def on_meshtastic_message(packet, loop=None):
              lora_ln = text["longName"]
              lora_mc = text["macaddr"]
              lora_mo = text["hwModel"]
-             text_line2 = "Node Info : Short name " + lora_sn + " Long name " + lora_ln + " using a " + lora_mo
+             # text_line2 = "Node Info : Short name " + lora_sn + " Long name " + lora_ln + " using a " + lora_mo
              logLora(packet["fromId"], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
     if text_line2 != '' and lora_lastmsg != text_line2:
         lora_lastmsg = text_line2
@@ -562,14 +575,40 @@ def LatLon2qth(latitude, longitude):
             lat = 10 * b[1]
     return locator
 
+def is_hour_between(start, end):
+    now = datetime.now().hour
+    is_between = False
+    is_between |= start <= now <= end
+    is_between |= end < start and (start <= now or now <= end)
+    return is_between
+
+import urllib.request
+weatherbeacon = True
+myqth = 'JO32'
+
 async def cleaner():
     while True:
         await asyncio.sleep(60 * BEACONDELAY)
-        gc.collect()
         # no beacon between 1 & 10
-        # date = datetime.now()
-        # if 1 <= int(date.hour) >= 10:
-        sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
+        if not is_hour_between(1, 10):
+            if weatherbeacon == False:
+                sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
+                weatherbeacon = True
+            else:
+                weatherurl = config.get('radio', 'weatherjson')
+                if weatherurl != '' and config.get('radio', 'weatherbeacon') == True:
+                    try:
+                        url = urllib.request.urlopen(weatherurl)
+                        wjson = json.load(url)
+                        winddir = ['N','NNO','NO','ONO','O','OZO','ZO','ZZO','Z','ZZW','ZW','WZW','W','WNW','NW','NNW','N']
+                        wtet  = winddir[round(int(wjson['winddir_avg10m'])*16/360)]
+                        sendqueue.append([0,'Weather at ' + myqth + ', Wind ' + wtet + ' ' + str(wjson['windspeedbf_avg10m']) + 'bf, Temp ' + str(round(wjson['tempc'])) + 'C, Hum ' + str(wjson['humidity']) + '%, Baro ' + str(round(wjson['baromabshpa'])) + 'hpa @ ' + time.strftime("%H:%M", time.localtime())])
+                    except:
+                        sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
+                else:
+                    sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
+                weatherbeacon = False
+        gc.collect()
 
 #---------------------------------------------------------------- Start Mains -----------------------------------------------------------------------------
 
@@ -596,7 +635,6 @@ if __name__ == "__main__":
     init_tncinWa8ded()
     init_tncConfig()
 
-    myqth = ''
     if config.get('radio', 'latitude') != '' and config.get('radio', 'longitude') != '':
         myqth = LatLon2qth(float(config.get('radio', 'latitude')),float(config.get('radio', 'longitude')))[:-2]
         print("\33[0;33mRadio QTH set to " + myqth)
