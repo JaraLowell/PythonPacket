@@ -42,13 +42,11 @@
         <button class="chansel tnc-default" id="ch3">3 : · · · · · ·</button>
         <button class="chansel tnc-default" id="ch4">4 : · · · · · ·</button>
         <button class="chansel tnc-default" id="ch5">5 : · · · · · ·</button>
-        <!--
         <button class="chansel tnc-default" id="ch6">6 : · · · · · ·</button>
         <button class="chansel tnc-default" id="ch7">7 : · · · · · ·</button>
         <button class="chansel tnc-default" id="ch8">8 : · · · · · ·</button>
-        <button class="chansel tnc-default" id="ch9">9 : · · · · · ·</button>
-        <button class="chansel tnc-default" id="ch10">10 : · · · · · ·</button>
-        -->
+        <button style="display:none" class="chansel tnc-default" id="ch9">LoraNET</button>
+        <button style="display:none" class="chansel tnc-default" id="ch10">APRS</button>
       </div>
       <div class="clock">
         <canvas id="localclock"></canvas>
@@ -57,6 +55,7 @@
     <div class="chat-title">
         <table id="montable"><tr><td rowspan="2" style="width:21%;"><h2> Monitor</h2></td><td style="width:26%;">Monitor Mode : <span id="infmon"></span></td><td style="width:28%;">Buffer : <span id="infbuf"></span> (App <span id="imem"></span>MB)</td><td rowspan="2" style="width: 200px;"><h2>mHeard</h2></td></tr><tr><td>Packets not yet displayed : <span id="infpacn"></span></td><td>Global Mycall : <span id="infmyc"></span></td></tr></table>
         <table id="chntable" style="display:none"><tr><td rowspan="2" id="chnnum" style="width:21%;"><h2>Channel</h2></td><td>My Call : <span id="chnmyc"></span></td><td colspan="2">Status : <span id="chn_f"></span></td><td>Buffer : <span id="chnbuf"></span> (App <span id="cmem"></span>MB)</td></tr><tr><td>Not displayed : <span id="chn_b"></span></td><td>Not send : <span id="chn_c"></span></td><td>Tries : <span id="chn_e"></span></td><td>Unacknowledged : <span id="chn_d"></span></td></tr></table>
+        <table id="other" style="display:none"><tr><td rowspan="2" id="othnum" style="width:21%;"><h2>Other</h2></td><td style="width:26%;"><span id="othmon"></span></td><td style="width:28%;"><span id="othbuf"></span><span id="othmem"></span></td><td rowspan="2" style="width: 200px;"><h2>mHeard</h2></td></tr><tr><td><span id="othpacn"></span></td><td><span id="othmyc"></span></td></tr></table>
     </div>
     <div class="messages">
       <div class="messages-content"></div>
@@ -295,8 +294,8 @@
                 if(chnz[6]== 'CHANNEL NOT CONNECTED') $("#ch6").html("6 : · · · · · ·").css({ "color": '#000'});  else { $("#ch6").html('6 : ' + chnz[6]).css({ "color": '#99ffb8'}); active = 1; }
                 if(chnz[7]== 'CHANNEL NOT CONNECTED') $("#ch7").html("7 : · · · · · ·").css({ "color": '#000'});  else { $("#ch7").html('7 : ' + chnz[7]).css({ "color": '#99ffb8'}); active = 1; }
                 if(chnz[8]== 'CHANNEL NOT CONNECTED') $("#ch8").html("8 : · · · · · ·").css({ "color": '#000'});  else { $("#ch8").html('8 : ' + chnz[8]).css({ "color": '#99ffb8'}); active = 1; }
-                if(chnz[9]== 'CHANNEL NOT CONNECTED') $("#ch9").html("9 : · · · · · ·").css({ "color": '#000'});  else { $("#ch9").html('9 : ' + chnz[9]).css({ "color": '#99ffb8'}); active = 1; }
-                if(chnz[10]=='CHANNEL NOT CONNECTED') $("#ch10").html("10 : · · · · · ·").css({ "color": '#000'}); else { $("#ch10").html('10 : ' + chnz[10]).css({ "color": '#99ffb8'}); active = 1; }
+                // if(chnz[9]== 'CHANNEL NOT CONNECTED') $("#ch9").html("9 : · · · · · ·").css({ "color": '#000'});  else { $("#ch9").html('9 : ' + chnz[9]).css({ "color": '#99ffb8'}); active = 1; }
+                // if(chnz[10]=='CHANNEL NOT CONNECTED') $("#ch10").html("10 : · · · · · ·").css({ "color": '#000'}); else { $("#ch10").html('10 : ' + chnz[10]).css({ "color": '#99ffb8'}); active = 1; }
                 if(active) {
                     if(wasallnone == 1) { audio.play(); wasallnone = 0; }
                 } else wasallnone = 1;
@@ -322,6 +321,9 @@
             var channel = tmp.chan;
             // if there more data we need like add it to buffer and display it once done, this only needed for channel 1 and above
 
+            if(channel == 9) { $('#ch9').show(); }
+            if(channel == 10) { $('#ch10').show(); }
+
             var formattedTime = '';
             var endtxt = '';
             if     (tmp.cmd == 'warn') { formattedTime += '<h1>'; endtxt += '</h1>'; }
@@ -332,11 +334,19 @@
             // Lets UnEscape some shiz; even tough this is a bad way and slow way of dooing it
             var chat = tmp.data;
             var lookup = {'&': "&amp;", '"': "&quot;", '\'': "&apos;", '<': "&lt;", '>': "&gt;", ' ': "&nbsp;"};
-            chat     = chat.replace( /[&"'<> ]/g, c => lookup[c] );
+            chat     = chat.replace( /["'<>]/g, c => lookup[c] );
             if(tmp.cmd == 'cmd5' || tmp.cmd == 'cmd4') {
                 chat = chat.replace('fm&nbsp;', 'fm&nbsp;<h5>');
                 chat = chat.replace('&nbsp;to', '</h5>&nbsp;to<h6>');
                 chat = chat.replace('&nbsp;ctl', '</h6>&nbsp;ctl');
+            }
+            if(chat.includes('&#13')) {
+                chat     = chat.replace('&#13;','<br><h4>');
+                endtxt   = '</h4>';
+            }
+            if(chat.includes('&#10')) {
+                chat     = chat.replace('&#10;','<br><h3>');
+                endtxt   = '</h3>';
             }
             chat     = chat.replace(/(\r\n|\n|\r)/gm,'<br>');
             var dowehave
@@ -355,7 +365,6 @@
                     dowehave.removeClass("active");
                     dowehave.append(formattedTime + '<br>' + chat + endtxt);
                 } else dowehave.append(formattedTime + chat + endtxt);
-
                 // dowehave.find('.timestamp').text(hours.substr(-2) + ':' + minutes.substr(-2)); // need test this
             } else {
                 msg = $("<div id='message' style='display: none;'>").addClass("message_" + channel); //.addClass("active");
@@ -367,7 +376,7 @@
                 if(tmp.cmd == 'echo')  check = 0;
                 if(tmp.cmd == 'info')  check = 0;
 
-                if(check == 1 && bulkdone == 1) msg.addClass("active");
+                if(check == 1 && bulkdone == 1 && channel != 10 && channel != 9) msg.addClass("active");
 
                 msg.html(formattedTime + chat + endtxt);
 
@@ -402,13 +411,24 @@
             else { activechannel = ch; $(this).toggleClass('tnc-active tnc-default'); }
             socket.send('@' + activechannel);
             $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
+
+            $(".messages").hide();
             for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = '';
+
+            console.log(activechannel)
             updateScrollbar();
 
-            $('#chnnum').html('<h2> Channel ' + activechannel + '</h2>');
+            if(activechannel < 9) {
+                $('#chnnum').html('<h2> Channel ' + activechannel + '</h2>');
+            } else if(activechannel == 9) {
+                $('#othnum').html('<h2>LoraNET</h2>');
+            } else if(activechannel == 10) {
+                $('#othnum').html('<h2>APRS</h2>');
+            }
 
-            if(activechannel > 0) { $('#montable').hide(); $('#chntable').show(); $('#ch' + activechannel).removeClass('tnc-news'); }
-            else { $('#montable').show(); $('#chntable').hide(); }
+            if(activechannel == 9 || activechannel == 10) { $('#montable').hide(); $('#chntable').hide(); $('#other').show(); $('#ch' + activechannel).removeClass('tnc-news'); }
+            else if(activechannel > 0) { $('#other').hide(); $('#montable').hide(); $('#chntable').show(); $('#ch' + activechannel).removeClass('tnc-news'); }
+            else { $('#other').hide(); $('#montable').show(); $('#chntable').hide(); }
 
             $(".messages").show();
             $(".tableheard").hide();
@@ -430,6 +450,7 @@
             }
             if(event.target.id == 'mnu4') {
                 if(activechannel != 0) {
+                    for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = 'none';
                     activechannel = 0;
                     socket.send('@' + activechannel);
                     for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = '';
@@ -439,6 +460,7 @@
                 $(".messages").show();
                 $('#montable').show();
                 $('#chntable').hide();
+                $('#other').hide();
                 $(".map").hide();
                 updateScrollbar();
             }

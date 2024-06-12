@@ -138,15 +138,22 @@ async def mysocket(websocket, path):
             if message[:1] == '@':
                 if message[1:].isnumeric():
                     tmp2 = int(message[1:])
-                    ACTIVECHAN = num2byte(tmp2)
-                    ser.write(ACTIVECHAN + b'\x01\x00\x49')
-                    tmp = ser.readline()[2:-1].decode()
-                    await sendmsg(tmp2,'cmd1','I:' + tmp)
-                    # macybe send connected to name ?
-                    ser.write(ACTIVECHAN + b'\x01\x00\x43')
-                    # await sendmsg(int(message[1:]),'cmd3','C:' + tmp)
-                    ACTCHANNELS[tmp2] = ser.readline()[2:-1].decode()
-                    await sendmsg(tmp2,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
+                    if tmp2 == 9:
+                        # LoraNet
+                        print('Websocket on Lora Net')
+                    elif tmp2 == 10:
+                        # APRS
+                        print('Websocket on APRS Net')
+                    else:
+                        ACTIVECHAN = num2byte(tmp2)
+                        ser.write(ACTIVECHAN + b'\x01\x00\x49')
+                        tmp = ser.readline()[2:-1].decode()
+                        await sendmsg(tmp2,'cmd1','I:' + tmp)
+                        # macybe send connected to name ?
+                        ser.write(ACTIVECHAN + b'\x01\x00\x43')
+                        # await sendmsg(int(message[1:]),'cmd3','C:' + tmp)
+                        ACTCHANNELS[tmp2] = ser.readline()[2:-1].decode()
+                        await sendmsg(tmp2,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
             else:
                 print("[Network] " + message + "\33[0m")
                 ch = int(ACTIVECHAN.hex(), 16)
@@ -280,7 +287,11 @@ def on_meshtastic_message(packet, loop=None):
     text_line1 = sender
     text_line2 = ''
     if sender in LoraDB:
-        text_line1 = LoraDB[sender][1] + " (" + LoraDB[sender][2] + ") " + sender
+        text_line1 = LoraDB[sender][1] + " (" + LoraDB[sender][2] + ")" # + sender
+
+    text_mqtt = ''
+    if "viaMqtt" in packet:
+        text_mqtt = ' via mqtt'
 
     if "text" in packet["decoded"] and packet["decoded"]["portnum"] == "TEXT_MESSAGE_APP":
         text = packet["decoded"]["text"]
@@ -289,6 +300,7 @@ def on_meshtastic_message(packet, loop=None):
             channel = packet["channel"]
         text_line2 = '[Ch ' + str(channel) + ']:\33[1;36m ' + text
         logLora(packet["fromId"],['UPDATETIME'])
+        sendqueue.append([9,text_line1 + text_mqtt + ' on Channel ' + str(channel) + '&#10;' + text])
         sendqueue.append([0,'[LoraNET] [Ch ' + str(channel) + '] ' + LoraDB[packet["fromId"]][1] + ': ' + text])
     elif "decoded" in packet and packet["decoded"]["portnum"] == "TELEMETRY_APP":
         text = packet["decoded"]["telemetry"]
@@ -308,29 +320,31 @@ def on_meshtastic_message(packet, loop=None):
             logLora(packet["fromId"],['UPDATETIME'])
         elif "environmentMetrics" in text:
             text = packet["decoded"]["telemetry"]["environmentMetrics"]
-            text_line2 = "Environment data : "
+            text_line2 = "Environment beacon: "
             if "temperature" in text:
                 text_line2 += "Temperature " + str(round(text["temperature"],1)) + "°C "
             if "relativeHumidity" in text:
                 text_line2 += "Humidity " + str(round(text["relativeHumidity"],1)) + "% "
             if "barometricPressure" in text:
                 text_line2 += "Barometric " + str(round(text["barometricPressure"],2)) + "hpa "
+            sendqueue.append([9,text_line1 + text_mqtt + '&#13;' + text_line2])
             logLora(packet["fromId"],['UPDATETIME'])
             text_line2 = ''
     elif "decoded" in packet and packet["decoded"]["portnum"] == "POSITION_APP":
         text = packet["decoded"]["position"]
         if "altitude" in text:
-            text_line2 = "Position data : "
+            text_line2 = "Position beacon: "
             if "latitudeI" in text:
                 text_line2 += "latitude " + str(round(text["latitudeI"] / 10000000,4)) + " "
             if "longitude" in text:
                 text_line2 += "longitude " + str(round(text["longitude"],4)) + " "
                 qth = LatLon2qth(round(text["latitudeI"] / 10000000,6), round(text["longitude"],6))
-                text_line2 += "(" + qth + ") "
-                if not is_hour_between(1, 10) and "viaMqtt" not in packet:
-                    sendqueue.append([0,'[LoraNET] Position beacon from ' + text_line1 + ' QTH ' + qth[:-2]])
+                # text_line2 += "(" + qth + ") "
             if "altitude" in text:
-                text_line2 += "altitude " + str(text["altitude"]) + "m "
+                text_line2 += "altitude " + str(text["altitude"]) + "meter"
+            if not is_hour_between(1, 10) and "viaMqtt" not in packet:
+                sendqueue.append([0,'[LoraNET] Position beacon from ' + text_line1 + ' QTH ' + qth[:-2]])
+            sendqueue.append([9,text_line1 + text_mqtt + '&#13;' + text_line2])
             logLora(packet["fromId"], ['POSITION_APP', text["latitudeI"], text["longitude"], text["altitude"]])
             # ["latitudeI"] ["longitude"] ["altitude"] ["time"] ["precisionBits"]
     elif "decoded" in packet and packet["decoded"]["portnum"] == "NEIGHBORINFO_APP":
@@ -646,9 +660,12 @@ async def go_serial():
                 await asyncio.sleep(0.016)
                 todo = (sendqueue[0])
                 sendqueue.pop(0)
-                beacon = send_tnc(todo[1] + '\r', todo[0])
-                ser.write(beacon)
-                ser.readline()
+                if todo[0] == 9 or todo[0] == 10:
+                    await sendmsg(todo[0],'cmd4',todo[1])
+                else:
+                    beacon = send_tnc(todo[1] + '\r', todo[0])
+                    ser.write(beacon)
+                    ser.readline()
             # And because we need to, send the mheard ever 15 full sec?
             tnow = int(time.time())
             if tnow > tlast + 15:
