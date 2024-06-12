@@ -234,7 +234,10 @@
         var seconds = "0" + date.getSeconds();
         if(bulkdone == 1) { $(".led-red").fadeTo(111,1.0).delay(250).fadeTo(111,0.12); }
 
-        if(tmp.cmd == 'cmd1') {
+        if(tmp.cmd == 'bulkdone') {
+            bulkdone = 1;
+            updateScrollbar();
+        } else if(tmp.cmd == 'cmd1') {
             if(activechannel == 0) {
                 if(tmp.data.substr(0,2) == '@B') $('#infbuf').text(tmp.data.substr(3));
                 if(tmp.data.substr(0,4) == '@MEM') $('#imem').text(Math.round(tmp.data.substr(5) / 1024 / 1024 * 100) / 100);
@@ -269,8 +272,6 @@
                     else $('#chn_f').text('Unkown(' + array[5] + ')');
                 }
             }
-            if(bulkdone == 0) updateScrollbar();
-            bulkdone = 1;
         } else if(tmp.cmd == 'cmd2') {
             /*
                 Failure, message follows
@@ -415,9 +416,6 @@
             $(".messages").hide();
             for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = '';
 
-            console.log(activechannel)
-            updateScrollbar();
-
             if(activechannel < 9) {
                 $('#chnnum').html('<h2> Channel ' + activechannel + '</h2>');
             } else if(activechannel == 9) {
@@ -433,6 +431,8 @@
             $(".messages").show();
             $(".tableheard").hide();
             $(".map").hide();
+
+            updateScrollbar();
         } else {
             // console.log(event.target.id);
             $('.chansel').removeClass('tnc-active').addClass('tnc-default');

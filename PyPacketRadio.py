@@ -123,6 +123,7 @@ async def register(websocket):
     if channelbuffers:
         for lines in channelbuffers:
             await websocket.send(json.dumps(lines[0]))
+    await websocket.send('{"cmd":"bulkdone"}')
 
 async def unregister(websocket):
     global USERS
