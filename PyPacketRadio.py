@@ -27,8 +27,6 @@ import configparser
 
 import pickle 
 
-from webui import webui
-
 def num2byte(number):
     return bytearray.fromhex("{0:#0{1}x}".format(number,4)[2:])
 
@@ -195,9 +193,6 @@ async def main():
             on_lost_meshtastic_connection,
             "meshtastic.connection.lost",
         )
-
-    my_window = webui.window()
-    my_window.show('http://localhost:%d/' % MYPORT)
 
     while True:
         text = await ainput("")
@@ -732,7 +727,7 @@ async def cleaner():
             pickle.dump(channelbuffers, f)
         # Memory Cleaner...
         gc.collect()
-"""
+
 ###       T O     D O       ###
 # These now be the preg replaces used in GP
 # Plus the max byte length.
@@ -740,46 +735,48 @@ async def cleaner():
 
 import random
 
-dev textchunk(cnktext , chn, callsign):
+def textchunk(cnktext , chn, callsign):
     tmp = ''
     # Lets do some preg replacing to...
-    cnktext = cnktext.replace('%v', 'PyPacketRadio v1.1')                               # GP version number, in this case it is 1.61
-    cnktext = cnktext.replace('%c', callsign)                                           # %c = The Call of the opposite Station
-    if callsign in mheard:
-        cnktext = cnktext.replace('%n', mheard[callsign][0] + ' ()' + callsign + ')')   # The Name of the opposite Station
-    else:
-        cnktext = cnktext.replace('%n', callsign)
-        tmp = 'Please enter your name via //N yourname'
-    cnktext = cnktext.replace('%?', tmp)                                                # prompts the connected station to report its name if it has not yet included in the list of names (NAMES.GP)
-    cnktext = cnktext.replace('%y', config.get('radio', 'mycall'))                      # %y = One's own Call
-    cnktext = cnktext.replace('%k', str(chn))                                           # %k = channel number on which the text will be broadcast
-    cnktext = cnktext.replace('%t', time.strftime('%H:%M:%S'))                          # %t = T: current GP time in HH:MM:SS format, e.g. 10:41:32
-    cnktext = cnktext.replace('%d', time.strftime("%d/%m/%Y"))                          # %d = current date eg: 25.03.1991
-    cnktext = cnktext.replace('%b', )                                                   # %b = Corresponds to the Bell Character (07h) we dont have this ?!
-    tmp = ''
-    if os.path.exists('txtfiles/news.txt'): tmp = 'There is news via //N'
-    cnktext = cnktext.replace('%i', tmp)                                                # %i = is there new news? News
-    cnktext = cnktext.replace('%z', datetime.datetime.now().astimezone().strftime("%z"))# %z = The Time Zone of the server
-    cnktext = cnktext.replace('%_', '\r')                                               # %_: ends the line and moves the cursor to a new line
-    cnktext = cnktext.replace('%>', 'to ' + config.get('radio', 'mycall') + ' >')       # bit like a command prompt place holder at bottom of msg
+    sindex = cnktext.find('%')
+    if sindex:
+        cnktext = cnktext.replace('%V', 'PyPacketRadio v1.1')                               # GP version number, in this case it is 1.61
+        cnktext = cnktext.replace('%C', callsign)                                           # %c = The Call of the opposite Station
+        if callsign in MHeard:
+            cnktext = cnktext.replace('%N', MHeard[callsign][0] + ' ()' + callsign + ')')   # The Name of the opposite Station
+        else:
+            cnktext = cnktext.replace('%N', callsign)
+            tmp = 'Please register your name via //Name yourname'
+        cnktext = cnktext.replace('%?', tmp)                                                # prompts the connected station to report its name if it has not yet included in the list of names (NAMES.GP)
+        cnktext = cnktext.replace('%Y', config.get('radio', 'mycall'))                      # %y = One's own Call
+        cnktext = cnktext.replace('%K', str(chn))                                           # %k = channel number on which the text will be broadcast
+        cnktext = cnktext.replace('%T', time.strftime('%H:%M:%S'))                          # %t = T: current GP time in HH:MM:SS format, e.g. 10:41:32
+        cnktext = cnktext.replace('%D', time.strftime("%d/%m/%Y"))                          # %d = current date eg: 25.03.1991
+        # cnktext = cnktext.replace('%B', )                                                 # %b = Corresponds to the Bell Character (07h) we dont have this ?!
+        tmp = ''
+        if os.path.exists('txtfiles/news.txt'): tmp = 'There is news via //News'
+        cnktext = cnktext.replace('%I', tmp)                                                # %i = is there new news? News
+        cnktext = cnktext.replace('%Z', datetime.datetime.now().astimezone().strftime("%z"))# %z = The Time Zone of the server
+        cnktext = cnktext.replace('%_', '\r')                                               # %_: ends the line and moves the cursor to a new line
+        cnktext = cnktext.replace('%>', 'to ' + config.get('radio', 'mycall') + ' >')       # bit like a command prompt place holder at bottom of msg
+        sindex = cnktext.find('%O')
+        if sindex:
+            if os.path.exists('txtfiles/origin.txt'):
+                lines = open('origin.txt').read().splitlines()
+                myline = random.choice(lines)
+                cnktext = cnktext.replace('%O', myline)                                     # %o = Reads a Line from ORIGIN.GPI (Chosen at Random)
+        # cnktext = cnktext.replace('%%', '%')                                              # percent sign
 
-    if os.path.exists('txtfiles/origin.txt'):
-        lines = open('origin.txt').read().splitlines()
-        myline = random.choice(lines)
-    cnktext = cnktext.replace('%o', myline)                                             # %o = Reads a Line from ORIGIN.GPI (Chosen at Random)
-    cnktext = cnktext.replace('%%', '%')                                                # percent sign
-
-    cnktext = cnktext.replace(/(\r\n|\n|\r)/gm,'\r'))                                   # lets make sure we only use \r as enter
+    cnktext = re.sub(r'(\r\n|\n|\r)', '\n', cnktext)                                        # lets make sure we only use \r as enter
 
     # Next part we need is tring to parts if string longer then 7f (127) bytes (characters)
     while len(cnktext) > 127:
         tmp = cnktext[0:127]
         cnktext = cnktext[128:]
-        # and send>
+        sendqueue.append([chn,cnktext])
     #do we have left over?
     if len(cnktext):
-        # and send>
-"""
+        sendqueue.append([chn,cnktext])
 
 #---------------------------------------------------------------- Start Mains -----------------------------------------------------------------------------
 
@@ -825,8 +822,6 @@ if __name__ == "__main__":
         loop.create_task(cleaner())
         loop.run_forever()
     except KeyboardInterrupt:
-        my_window.close()
-        webui.exit()
         # Databases...
         with open(LoraDBPath, 'wb') as f:
             pickle.dump(LoraDB, f)
