@@ -81,7 +81,14 @@
     $('.leaflet-container').css('cursor','default');
 
     map.on('mousemove', onMapMove);
-    // map.on('click', onMapClick);
+
+    var blueIcon = new L.Icon({
+        iconUrl: 'libs/images/marker-icon-blue.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+    });
+
+    var orangeIcon = new L.Icon({
+        iconUrl: 'libs/images/marker-icon-orange.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+    });
 
     function locator2deg(locator) {
         if(locator.length == 6) locator += "55AA";
@@ -127,13 +134,16 @@
             obj = JSON.parse(event.data);
             var spot;
             for(var k in obj) {
-
                 spot = locator2deg(obj[k]);
+                var marker;
 
-                console.log(k + ':' + obj[k] + '>' + spot.toString());
-
-                if(k != 'NL0MSK') title = k + '<br>' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]); else title = k;
-                var marker = L.marker(spot, { title: title });
+                if(k.substring(0,2) == 'L_') {
+                    title = k.substring(2) + '<br>' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]);
+                    marker = L.marker(spot, {icon: orangeIcon}, { title: title });
+                } else {
+                    if(k != 'NL0MSK') title = k + '<br>' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]); else title = k;
+                    marker = L.marker(spot, {icon: blueIcon}, { title: title });
+                }
                 marker.bindPopup(title);
                 markers.addLayer(marker);
             }
