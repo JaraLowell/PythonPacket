@@ -314,22 +314,17 @@ def on_meshtastic_message(packet, loop=None):
             text_mqtt = ' via mqtt'
 
         # Lets Work the Msgs
-        if data["portnum"] == "TEXT_MESSAGE_APP" and "text" in data:
-            text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
-            text_raws = data["text"]
-            text_chns = '0'
-            if "channel" in packet:
-                text_chns = str(packet["channel"])
-            sendqueue.append([9,text_from + text_mqtt + ' on Channel ' + text_chns + '&#10;' + text_msgs])
-            sendqueue.append([0,'[LoraNET] [Ch ' + text_chns + '] ' + text_from + ': ' + text_msgs])
-            donoting = False
-        elif data["portnum"] == "TELEMETRY_APP":
+        if data["portnum"] == "TELEMETRY_APP":
             if "deviceMetrics" in  data["telemetry"]:
                 text = data["telemetry"]["deviceMetrics"]
                 if "voltage" in text and "batteryLevel" in text:
                     sendqueue.append([9,'deviceMetrics:{\\"id\\":\\"' + packet["fromId"][1:] + '\\",\\"v\\":' + str(round(text["voltage"],2)) + ',\\"b\\":' + str(text["batteryLevel"]) + '}'])
             donoting = True
-        elif data["portnum"] == "POSITION_APP":
+        if data["portnum"] == "NEIGHBORINFO_APP":
+            donoting = True
+        if data["portnum"] == "ROUTING_APP":
+            donoting = True
+        if data["portnum"] == "POSITION_APP":
             text = data["position"]
             if "altitude" in text:
                 text_msgs = "Position beacon: "
@@ -349,11 +344,7 @@ def on_meshtastic_message(packet, loop=None):
                 logLora(packet["fromId"][1:], ['POSITION_APP', text["latitudeI"], text["longitude"], text["altitude"]])
                 # ["latitudeI"] ["longitude"] ["altitude"] ["time"] ["precisionBits"]
                 donoting = False
-        elif data["portnum"] == "NEIGHBORINFO_APP":
-            donoting = True
-        elif data["portnum"] == "ROUTING_APP":
-            donoting = True
-        elif data["portnum"] == "NODEINFO_APP":
+        if data["portnum"] == "NODEINFO_APP":
             text = data["user"]
             if "shortName" in text:
                 lora_sn = str(text["shortName"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
@@ -365,6 +356,15 @@ def on_meshtastic_message(packet, loop=None):
                 text_from = LoraDB[packet["fromId"][1:]][1] + " (" + LoraDB[packet["fromId"][1:]][2] + ")"
                 sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_raws])
                 donoting = False
+        if data["portnum"] == "TEXT_MESSAGE_APP" and "text" in data:
+            text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+            text_raws = data["text"]
+            text_chns = '0'
+            if "channel" in packet:
+                text_chns = str(packet["channel"])
+            sendqueue.append([9,text_from + text_mqtt + ' on Channel ' + text_chns + '&#10;' + text_msgs])
+            sendqueue.append([0,'[LoraNET] [Ch ' + text_chns + '] ' + text_from + ': ' + text_msgs])
+            donoting = False
 
         if donoting == True:
             logLora(packet["fromId"][1:],['UPDATETIME'])
