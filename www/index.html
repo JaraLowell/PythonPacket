@@ -59,7 +59,8 @@
     </div>
     <div class="messages">
       <div class="messages-content"></div>
-      <div class="side-content"></div>
+      <div id="RadioMH" class="side-content"></div>
+      <div id="LoraMH" class="side-content" style="display:none"></div>
       <div class="leds"><div id="led-red" class="led-red"></div><div id="led-green" class="led-green"></div></div>
     </div>
 
@@ -308,9 +309,43 @@
             mheard = JSON.parse(tmp.data);
             mheardshow();
         } else if(tmp.cmd == 'loraHeard') {
-            /*
-                Lora Station heard DataTransfer
-            */
+            tmp = JSON.parse(tmp.data);
+            var lenz = Object.keys(tmp).length;
+            if(lenz) {
+                // lets do itttt
+                var tablerow = ''
+                var index = 0;
+                var tmpname;
+                for(var k in tmp) {
+                    if($("#" + k).length != 0) ++index;
+                }
+                if(index != lenz) {
+                    for(var k in tmp) {
+                        tmpname = k;
+                        tablerow += '<table class="LHTable" id="' + k + '"><tr><td colspan="3" class="LHTop" id="lname' + k + '">';
+                        var name = tmp[tmpname][2];
+                        if(name == '') name = '!' + k
+                        tablerow += name + '</td></tr><tr><td class="LHInfo" style="width: 50px; font-size: 15px;" rowspan="2" id="sname' + k + '">';
+                        name = tmp[tmpname][1];
+                        if(name == '') name = '&nbsp;'
+                        tablerow += name + '</td><td class="LHInfo" style="text-align: end;" id="info' + k + '">';
+                        tablerow += '&nbsp;</td><td class="LHInfo" style="width: 3px; border-radius: 0px 0px 5px 0px;" rowspan="2"></td></tr><tr><td class="LHInfo" style="text-align: end;" id="time' + k + '">';
+                        tablerow += '&nbsp;</td></tr></table>';
+                    }
+                    $("#LoraMH").html(tablerow);
+                } else {
+                    for(var k in tmp) {
+                        tmpname = k;
+                        var name = tmp[tmpname][2];
+                        if(name == '') name = '!' + k
+                        $("#lname" + k).html(name)
+                        name = tmp[tmpname][1];
+                        if(name == '') name = '&nbsp;'
+                        $("#sname" + k).html(name)
+                        $("#time" + k).html(ezDate(tmp[tmpname][0]));
+                    }
+                }
+            }
         } else {
             /*
                 Lets deal with chats
@@ -318,7 +353,18 @@
                 cmd5 : Monitor header/info
                 chat : Connected information
                 warn : Monitor information
+
+                deviceMetrics:{!7c5ca87c,4.04,87}
             */
+            var chat = tmp.data;
+            if(chat.substring(0,14) == 'deviceMetrics:') {
+                tmp = JSON.parse(chat.substring(14))
+                if($("#" + tmp.id).length != 0) {
+                    $("#info" + tmp.id).text(tmp.b + '% ' + tmp.v + 'V');
+                }
+                return;
+            }
+
             var channel = tmp.chan;
             // if there more data we need like add it to buffer and display it once done, this only needed for channel 1 and above
 
@@ -333,7 +379,6 @@
             else if(tmp.cmd == 'echo') { formattedTime += '<h3>'; endtxt += '<br></h3>'; }
 
             // Lets UnEscape some shiz; even tough this is a bad way and slow way of dooing it
-            var chat = tmp.data;
             var lookup = {'&': "&amp;", '"': "&quot;", '\'': "&apos;", '<': "&lt;", '>': "&gt;", ' ': "&nbsp;"};
             chat     = chat.replace( /["'<>]/g, c => lookup[c] );
             if(tmp.cmd == 'cmd5' || tmp.cmd == 'cmd4') {
@@ -424,9 +469,9 @@
                 $('#othnum').html('<h2>APRS</h2>');
             }
 
-            if(activechannel == 9 || activechannel == 10) { $('#montable').hide(); $('#chntable').hide(); $('#other').show(); $('#ch' + activechannel).removeClass('tnc-news'); }
-            else if(activechannel > 0) { $('#other').hide(); $('#montable').hide(); $('#chntable').show(); $('#ch' + activechannel).removeClass('tnc-news'); }
-            else { $('#other').hide(); $('#montable').show(); $('#chntable').hide(); }
+            if(activechannel == 9 || activechannel == 10) { $('#montable').hide(); $('#chntable').hide(); $('#other').show(); $('#ch' + activechannel).removeClass('tnc-news'); $('#LoraMH').show(); $('#RadioMH').hide(); }
+            else if(activechannel > 0) { $('#other').hide(); $('#montable').hide(); $('#chntable').show(); $('#ch' + activechannel).removeClass('tnc-news'); $('#LoraMH').hide(); $('#RadioMH').show(); }
+            else { $('#other').hide(); $('#montable').show(); $('#chntable').hide(); $('#LoraMH').hide(); $('#RadioMH').show(); }
 
             $(".messages").show();
             $(".tableheard").hide();
@@ -462,6 +507,8 @@
                 $('#chntable').hide();
                 $('#other').hide();
                 $(".map").hide();
+                $('#LoraMH').hide();
+                $('#RadioMH').show();
                 updateScrollbar();
             }
         }
@@ -486,6 +533,21 @@
 
         if(temp > 1) val += 's';
         return clr + val + '</font>';
+    }
+
+    function loraheared(info) {
+        var tablerow = ''
+        if($("#" + name).length == 0) {
+            //it doesn't exist
+        }
+        for(var k in info) {
+            tablerow += '<table class="LHTable"><tr><td colspan="3" class="LHTop">';
+            tablerow += 'Mussel iGate</td></tr><tr><td class="LHInfo" style="width: 50px; font-size: 15px;" rowspan="2">';
+            tablerow += 'MSK0</td><td class="LHInfo" style="text-align: end;">';
+            tablerow += '87% 4.16V</td><td class="LHInfo" style="width: 3px; border-radius: 0px 0px 5px 0px;" rowspan="2"></td></tr><tr><td class="LHInfo" style="text-align: end;">';
+            tablerow += '4 min</td></tr></table>';
+        }
+        $("#LoraMH").html(tablerow);
     }
 
     function mheardshow() {
@@ -528,7 +590,8 @@
                 tablerow += '<td>' + nFormatter(mheard[tmpname][7],1) + '</td>';
                 tablerow += '</tr>';
             }
-            $(".side-content").html(output);
+            // $(".side-content").html(output);
+            $("#RadioMH").html(output);
             tablerow += '</table>';
             // $(".mheard-content").html(tablerow);
             $('#mCSB_1_container').html(tablerow);

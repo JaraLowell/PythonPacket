@@ -175,7 +175,7 @@ async def sendmsg(chan, cmd, message):
         except Exception as e:
             print("[Network] \33[1;31m" + repr(e))
 
-    if cmd != 'cmd1' and cmd != 'cmd2' and cmd != 'cmd3' and cmd != 'cmd100':
+    if cmd != 'cmd1' and cmd != 'cmd2' and cmd != 'cmd3' and cmd != 'cmd100' and cmd != 'loraHeard':
         tmp = {}
         tmp['time'] = timenow
         tmp['chan'] = chan
@@ -186,9 +186,10 @@ async def sendmsg(chan, cmd, message):
             if len(monitorbuffer) > 300:
                 monitorbuffer.pop(0)
         else:
-            channelbuffers.append([tmp]);
-            if len(channelbuffers) > 500:
-                channelbuffers.pop(0)
+            if "deviceMetrics" not in message:
+                channelbuffers.append([tmp]);
+                if len(channelbuffers) > 500:
+                    channelbuffers.pop(0)
 
 #------------------------------------------------------------- Console Chat ---------------------------------------------------------------------------
 
@@ -256,7 +257,7 @@ def connect_meshtastic(force_connect=False):
 
     nodeInfo = meshtastic_client.getMyNodeInfo()
     print("[LoraNet] Connected to " + nodeInfo['user']['id'] + " > "  + nodeInfo['user']['shortName'] + " / " + nodeInfo['user']['longName'] + " using a " + nodeInfo['user']['hwModel'])
-    logLora(nodeInfo['user']['id'], ['NODEINFO_APP', nodeInfo['user']['shortName'], nodeInfo['user']['longName'], nodeInfo['user']["macaddr"],nodeInfo['user']['hwModel']])
+    logLora((nodeInfo['user']['id'])[1:], ['NODEINFO_APP', nodeInfo['user']['shortName'], nodeInfo['user']['longName'], nodeInfo['user']["macaddr"],nodeInfo['user']['hwModel']])
     return meshtastic_client
 
 def on_lost_meshtastic_connection(interface):
@@ -280,6 +281,20 @@ def logLora(nodeID, info):
         LoraDB[nodeID][4] = info[2] # longitude
         LoraDB[nodeID][5] = info[3] # altitude
 
+async def sendloralog():
+    if len(LoraDB):
+        textmessage = ''
+        for items in LoraDB:
+            textmessage += '{\\"id\\":\\"' + items[1:] + '\\",'
+            textmessage += '\\"name\\":\\"' + LoraDB[items][1] + '\\",'
+            textmessage += '\\"desc\\":\\"' + LoraDB[items][2] + '\\",'
+            textmessage += '\\"lat\\":\\"' + str(LoraDB[items][3]) + '\\",'
+            textmessage += '\\"lon\\":\\"' + str(LoraDB[items][4]) + '\\",'
+            textmessage += '\\"first\\":' + str(LoraDB[items][8]) + ','
+            textmessage += '\\"last\\":' + str(LoraDB[items][0]) + '},'
+        print(textmessage)
+        # await sendmsg(999, 'loraHeard', textmessage):
+
 # import yaml
 def on_meshtastic_message(packet, loop=None):
     # print(yaml.dump(packet))
@@ -287,7 +302,7 @@ def on_meshtastic_message(packet, loop=None):
     donoting = True
     if "decoded" in packet:
         data = packet["decoded"]
-        text_from  = packet["fromId"]
+        text_from  = packet["fromId"][1:]
         text_mqtt = ''
         text_msgs = ''
 
@@ -309,6 +324,10 @@ def on_meshtastic_message(packet, loop=None):
             sendqueue.append([0,'[LoraNET] [Ch ' + text_chns + '] ' + text_from + ': ' + text_msgs])
             donoting = False
         elif data["portnum"] == "TELEMETRY_APP":
+            if "deviceMetrics" in  data["telemetry"]:
+                text = data["telemetry"]["deviceMetrics"]
+                if "voltage" in text and "batteryLevel" in text:
+                    sendqueue.append([9,'deviceMetrics:{\\"id\\":\\"' + packet["fromId"][1:] + '\\",\\"v\\":' + str(round(text["voltage"],2)) + ',\\"b\\":' + str(text["batteryLevel"]) + '}'])
             donoting = True
         elif data["portnum"] == "POSITION_APP":
             text = data["position"]
@@ -327,7 +346,7 @@ def on_meshtastic_message(packet, loop=None):
                     sendqueue.append([0,'[LoraNET] Position beacon from ' + text_from + ' QTH ' + qth[:-2]])
                 text_raws = text_msgs
                 sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_msgs])
-                logLora(packet["fromId"], ['POSITION_APP', text["latitudeI"], text["longitude"], text["altitude"]])
+                logLora(packet["fromId"][1:], ['POSITION_APP', text["latitudeI"], text["longitude"], text["altitude"]])
                 # ["latitudeI"] ["longitude"] ["altitude"] ["time"] ["precisionBits"]
                 donoting = False
         elif data["portnum"] == "NEIGHBORINFO_APP":
@@ -341,14 +360,14 @@ def on_meshtastic_message(packet, loop=None):
                 lora_ln = str(text["longName"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
                 lora_mc = text["macaddr"]
                 lora_mo = text["hwModel"]
-                logLora(packet["fromId"], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
+                logLora(packet["fromId"][1:], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
                 text_raws = "NodeInfo beacon using hardware " + lora_mo
-                text_from = LoraDB[packet["fromId"]][1] + " (" + LoraDB[packet["fromId"]][2] + ")"
+                text_from = LoraDB[packet["fromId"][1:]][1] + " (" + LoraDB[packet["fromId"][1:]][2] + ")"
                 sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_raws])
                 donoting = False
 
         if donoting == True:
-            logLora(packet["fromId"],['UPDATETIME'])
+            logLora(packet["fromId"][1:],['UPDATETIME'])
         elif text_raws != '' and lora_lastmsg != text_raws:
             lora_lastmsg = text_raws
             if "viaMqtt" in packet:
@@ -525,7 +544,7 @@ async def go_serial():
                 # print("stop polling")  0000ff0100
                 polling = 0
 
-                chan_i = int(polling_data.hex()[4:6]) - 1
+                chan_i = int(polling_data.hex()[4:6], 16) - 1
                 # these two vcases should not happen but happen... 
                 if chan_i < 0: chan_i = 0
                 if chan_i > 10 and chan_i < 255: chan_i = 0
@@ -574,7 +593,7 @@ async def go_serial():
                 elif data_int == 4:
                     # print("Monitor Header NoInfo")
                     print(namechan + " \33[1;37m" + data.decode()[2:] + "\33[0m")
-                    await sendmsg(chan_i,'cmd4',data.decode()[2:])
+                    await sendmsg(chan_i,'cmd4',data.decode()[2:-1])
                 elif data_int == 5:
                     # print("Monitor Header With Info")
                     data_decode = (codecs.decode(data, 'cp850')[2:])
@@ -602,8 +621,10 @@ async def go_serial():
                         _print('                     ' + lines)
                         sendtext += lines + '\r'
                     _print('\33[0m', end='')
-                    await sendmsg(chan_i,'warn',sendtext[:-1])
-                    
+
+                    grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+                    await sendmsg(chan_i,'warn',grr)
+
                     locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}[0-9]{2}', data_decode.upper())
                     if not locator:
                         locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}', data_decode.upper())
@@ -625,7 +646,8 @@ async def go_serial():
                         _print('                     ' + lines)
                         sendtext += lines + '\r'
                     _print('\33[0m', end='')
-                    await sendmsg(chan_i,'chat',sendtext[:-1])
+                    grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+                    await sendmsg(chan_i,'chat',grr)
                 else:
                     print("No data")
                     # pass
@@ -660,6 +682,7 @@ async def go_serial():
             if tnow > tlast + 15:
                 tlast = tnow
                 await sendmsg(100,'cmd100',json.dumps(MHeard).replace('\"','\\\"'))
+                await sendmsg(100,'loraHeard',json.dumps(LoraDB).replace('\"','\\\"'))
 
 #-------------------------------------------------------------- Side Functions ---------------------------------------------------------------------------
 
