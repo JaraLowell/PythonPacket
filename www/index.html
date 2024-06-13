@@ -325,7 +325,7 @@
                         tablerow += '<table class="LHTable" id="' + k + '"><tr><td colspan="3" class="LHTop" id="lname' + k + '">';
                         var name = tmp[tmpname][2];
                         if(name == '') name = '!' + k
-                        tablerow += name + '</td></tr><tr><td class="LHInfo2" style="width: 50px; font-size: 15px;" rowspan="2" id="sname' + k + '">';
+                        tablerow += name + '</td></tr><tr><td class="LHInfo2" style="width: 50px;" rowspan="2" id="sname' + k + '">';
                         name = tmp[tmpname][1];
                         if(name == '') name = '&nbsp;'
                         tablerow += name + '</td><td class="LHInfo" style="text-align: end;" id="info' + k + '">';
@@ -533,21 +533,6 @@
 
         if(temp > 1) val += 's';
         return clr + val + '</font>';
-    }
-
-    function loraheared(info) {
-        var tablerow = ''
-        if($("#" + name).length == 0) {
-            //it doesn't exist
-        }
-        for(var k in info) {
-            tablerow += '<table class="LHTable"><tr><td colspan="3" class="LHTop">';
-            tablerow += 'Mussel iGate</td></tr><tr><td class="LHInfo" style="width: 50px; font-size: 15px;" rowspan="2">';
-            tablerow += 'MSK0</td><td class="LHInfo" style="text-align: end;">';
-            tablerow += '87% 4.16V</td><td class="LHInfo" style="width: 3px; border-radius: 0px 0px 5px 0px;" rowspan="2"></td></tr><tr><td class="LHInfo" style="text-align: end;">';
-            tablerow += '4 min</td></tr></table>';
-        }
-        $("#LoraMH").html(tablerow);
     }
 
     function mheardshow() {
