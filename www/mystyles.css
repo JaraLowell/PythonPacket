@@ -1,11 +1,11 @@
 :root {
-    --TXTHEAD: #3c96bf;
+    --TXTHEAD: #7bd6ff;
     --TXTNORM: #c2c2c2;
     --TXTINFO: #d5c34e;
     --TXTTIME: #bababa;
     --TXTWARN: #ff9999;
     --TXTSELF: #67b4fb;
-    --TXTCHAT: #99ffb8;
+    --TXTCHAT: #6fde91;
 
     --BGBOFF: #383838;
     --BGBACT: #7c7c7c;
@@ -202,8 +202,8 @@ canvas {
 }
 
 .tnc-news {
-    background-color: var(--TXTINFO);
-    box-shadow: inset 0 6px 10px var(--TXTINFO);
+    background-color: var(--BGBACT);
+    box-shadow: inset 0 6px 10px var(--BGBOFF);
     color: var(--TXTWARN) !important;
 }
 
@@ -211,7 +211,6 @@ canvas {
     background-color: var(--BGBHOV) !important;
     color: var(--TXTHEAD) !important;
 }
-
 
 @keyframes ball {
   0% {
