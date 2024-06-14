@@ -259,6 +259,7 @@ def connect_meshtastic(force_connect=False):
     nodeInfo = meshtastic_client.getMyNodeInfo()
     print("[LoraNet] Connected to " + nodeInfo['user']['id'] + " > "  + nodeInfo['user']['shortName'] + " / " + nodeInfo['user']['longName'] + " using a " + nodeInfo['user']['hwModel'])
     logLora((nodeInfo['user']['id'])[1:], ['NODEINFO_APP', nodeInfo['user']['shortName'], nodeInfo['user']['longName'], nodeInfo['user']["macaddr"],nodeInfo['user']['hwModel']])
+    updatesnodes()
     return meshtastic_client
 
 def on_lost_meshtastic_connection(interface):
@@ -298,7 +299,7 @@ async def sendloralog():
 
 # import yaml
 def on_meshtastic_message(packet, loop=None):
-    # print(yaml.dump(packet))
+    # print(yaml.dump(meshtastic_client.nodes))
     global lora_lastmsg
     donoting = True
     if "decoded" in packet:
@@ -310,6 +311,8 @@ def on_meshtastic_message(packet, loop=None):
         if text_from in LoraDB:
             if LoraDB[text_from][1] != '':
                 text_from = LoraDB[text_from][1] + " (" + LoraDB[text_from][2] + ")"
+        else:
+            updatesnodes()
 
         if "viaMqtt" in packet:
             text_mqtt = ' via mqtt'
@@ -376,6 +379,23 @@ def on_meshtastic_message(packet, loop=None):
             else:
                 print("[LoraNet]\33[0;37m fm " + text_from + "\33[0m")
             _print('\33[0;32m                     ' + text_raws + '\33[0m')
+
+def updatesnodes():
+    tmp = meshtastic_client.nodes.items()
+    for nodes, info in tmp:
+        # print(str(info['user']['id']) + ' > ' + str(info['user']['shortName']) + ' : ' + str(info['user']['longName']))
+        # logLora(str(info['user']['id'])[1:], ['NODEINFO_APP', str(info['user']['shortName']), str(info['user']['longName']), str(info['user']['macaddr']), str(info['user']['hwModel']), str(info['lastHeard'])])
+        nodeID = str(info['user']['id'])[1:]
+        nodeLast = info['lastHeard']
+        if nodeID in LoraDB:
+            LoraDB[nodeID][0] = nodeLast # time last seen
+        else:
+            LoraDB[nodeID] = [nodeLast, '', '', '', '', '', '', '', nodeLast]
+
+        LoraDB[nodeID][1] = str(info['user']['shortName'])
+        LoraDB[nodeID][2] = str(info['user']['longName'])
+        LoraDB[nodeID][6] = str(info['user']['macaddr'])
+        LoraDB[nodeID][7] = str(info['user']['hwModel'])
 
 #-------------------------------------------------------------- TNC WA8DED ---------------------------------------------------------------------------
 BEACONDELAY = int(config.get('radio', 'beacon_time'))
