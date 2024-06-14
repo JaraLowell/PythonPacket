@@ -634,10 +634,11 @@ async def go_serial():
                     if not locator:
                         locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}', data_decode.upper())
 
-                    # APRS Location to locator (hopfully)
+                    # APRS Location to locator (hopfully) apparently we off by like 5km.. or so
                     if not locator:
                         if len(data_decode) >= 20:
                             ymp = str(re.findall(r'[0-9]{4}[.][0-9]{2}[N,S]/.[0-9]{4}[.][0-9]{2}[E,W]', data_decode))
+                            # we get as example ['5303.96N/00700.39E']
                             if len(ymp) == 22:
                                 direction = {'N':1, 'S':-1, 'E': 1, 'W':-1}
                                 new = (ymp[2:4] + ' ' + ymp[4:6] + ' ' + ymp[7:9] + ' ' + ymp[9:10]).split()
@@ -648,7 +649,7 @@ async def go_serial():
                                 new_dir = new.pop()
                                 new.extend([0,0,0])
                                 lon = (int(new[0])+int(new[1])/60.0+int(new[2])/3600.0) * direction[new_dir]
-                                locator = [LatLon2qth(lat, lon),12]
+                                locator = [LatLon2qth(lat, lon)[:-2],12]
 
                     if not locator:
                          logheard(callsign, 6, '')
