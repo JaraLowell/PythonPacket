@@ -271,7 +271,7 @@ def logLora(nodeID, info):
     if nodeID in LoraDB:
         LoraDB[nodeID][0] = tnow # time last seen
     else:
-        LoraDB[nodeID] = [tnow, '', '', '', '', '', '', '', tnow]
+        LoraDB[nodeID] = [tnow, '', '', '', '', '', '', '', tnow, '']
 
     if info[0] == 'NODEINFO_APP':
         LoraDB[nodeID][1] = info[1] # short name
@@ -282,6 +282,8 @@ def logLora(nodeID, info):
         LoraDB[nodeID][3] = info[1] # latitude
         LoraDB[nodeID][4] = info[2] # longitude
         LoraDB[nodeID][5] = info[3] # altitude
+        LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])[:-2]
+
 
 async def sendloralog():
     if len(LoraDB):
@@ -332,20 +334,20 @@ def on_meshtastic_message(packet, loop=None):
             text = data["position"]
             if "altitude" in text:
                 text_msgs = "Position beacon: "
-                if "latitudeI" in text:
-                    text_msgs += "latitude " + str(round(text["latitudeI"] / 10000000,4)) + " "
+                if "latitude" in text:
+                    text_msgs += "latitude " + str(round(text["latitude"],4)) + " "
                 if "longitude" in text:
                     text_msgs += "longitude " + str(round(text["longitude"],4)) + " "
-                    qth = LatLon2qth(round(text["latitudeI"] / 10000000,6), round(text["longitude"],6))
+                    qth = LatLon2qth(round(text["latitude"],6), round(text["longitude"],6))
                     # text_msgs += "(" + qth + ") "
                 if "altitude" in text:
                     text_msgs += "altitude " + str(text["altitude"]) + "meter"
 
-                if not is_hour_between(1, 10) and "viaMqtt" not in packet:
-                    sendqueue.append([0,'[LoraNET] Position beacon from ' + text_from + ' QTH ' + qth[:-2]])
+                # if not is_hour_between(1, 10) and "viaMqtt" not in packet:
+                #     sendqueue.append([0,'[LoraNET] Position beacon from ' + text_from + ' QTH ' + qth[:-2]])
                 text_raws = text_msgs
                 sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_msgs])
-                logLora(packet["fromId"][1:], ['POSITION_APP', text["latitudeI"], text["longitude"], text["altitude"]])
+                logLora(packet["fromId"][1:], ['POSITION_APP', text["latitude"], text["longitude"], text["altitude"]])
                 # ["latitudeI"] ["longitude"] ["altitude"] ["time"] ["precisionBits"]
                 donoting = False
         if data["portnum"] == "NODEINFO_APP":
@@ -381,21 +383,27 @@ def on_meshtastic_message(packet, loop=None):
             _print('\33[0;32m                     ' + text_raws + '\33[0m')
 
 def updatesnodes():
-    tmp = meshtastic_client.nodes.items()
-    for nodes, info in tmp:
-        # print(str(info['user']['id']) + ' > ' + str(info['user']['shortName']) + ' : ' + str(info['user']['longName']))
-        # logLora(str(info['user']['id'])[1:], ['NODEINFO_APP', str(info['user']['shortName']), str(info['user']['longName']), str(info['user']['macaddr']), str(info['user']['hwModel']), str(info['lastHeard'])])
+    info = ''
+    for nodes, info in meshtastic_client.nodes.items():
         nodeID = str(info['user']['id'])[1:]
-        nodeLast = info['lastHeard']
+        nodeLast = 0
+        if "lastHeard" in info and info["lastHeard"] is not None:
+            nodeLast = info['lastHeard']
         if nodeID in LoraDB:
-            LoraDB[nodeID][0] = nodeLast # time last seen
+            LoraDB[nodeID][0] = nodeLast
         else:
-            LoraDB[nodeID] = [nodeLast, '', '', '', '', '', '', '', nodeLast]
+            LoraDB[nodeID] = [nodeLast, '', '', '', '', '', '', '', nodeLast, '']
 
-        LoraDB[nodeID][1] = str(info['user']['shortName'])
-        LoraDB[nodeID][2] = str(info['user']['longName'])
-        LoraDB[nodeID][6] = str(info['user']['macaddr'])
-        LoraDB[nodeID][7] = str(info['user']['hwModel'])
+        if "user" in info:                
+            LoraDB[nodeID][1] = str(info['user']['shortName'])
+            LoraDB[nodeID][2] = str(info['user']['longName'])
+            LoraDB[nodeID][6] = str(info['user']['macaddr'])
+            LoraDB[nodeID][7] = str(info['user']['hwModel'])
+        if "position" in info:
+            LoraDB[nodeID][3] = info['position']['latitude']
+            LoraDB[nodeID][4] = info['position']['longitude']
+            LoraDB[nodeID][5] = info['position']['altitude']
+            LoraDB[nodeID][9] = LatLon2qth(info['position']['latitude'],info['position']['longitude'])[:-2]
 
 #-------------------------------------------------------------- TNC WA8DED ---------------------------------------------------------------------------
 BEACONDELAY = int(config.get('radio', 'beacon_time'))
@@ -568,7 +576,7 @@ async def go_serial():
             if polling_data.hex() != 'ff0100':
                 # print("stop polling")  0000ff0100
                 polling = 0
-
+                if chan_i == '': chan_i = 0
                 chan_i = int(polling_data.hex()[4:6], 16) - 1
                 # these two vcases should not happen but happen... 
                 if chan_i < 0: chan_i = 0
@@ -735,7 +743,6 @@ def LatLon2qth(latitude, longitude):
     locator = chr(A + int(a[0])) + chr(A + int(b[0]))
     lon = a[1] / 2.0
     lat = b[1]
-    A = ord('a')
     i = 1
     while i < 5:
         i += 1

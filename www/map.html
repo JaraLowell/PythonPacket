@@ -40,6 +40,17 @@
         maxZoom: 16
     });
 
+    // Was iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+    var blueIcon = new L.Icon({
+        iconUrl: 'libs/images/marker-icon-blue.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]
+    });
+    var orangeIcon = new L.Icon({
+        iconUrl: 'libs/images/marker-icon-orange.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]
+    });
+    var redIcon = new L.Icon({
+        iconUrl: 'libs/images/marker-icon-red.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]
+    });
+
     var map = L.map('map_canvas', {
         layers: [layer2, layer],
         center: [52.9548, 7.0384],
@@ -79,22 +90,14 @@
     var title;
 
     var title = 'Creator';
-    var marker = L.marker(myspot, { title: title});
+    var marker = L.marker(myspot, {icon: redIcon}, { title: title});
     marker.bindPopup(title);
     markers.addLayer(marker);
     map.addLayer(markers);
 
     $('.leaflet-container').css('cursor','default');
     map.on('mousemove', onMapMove);
-    var blueIcon = new L.Icon({
-        iconUrl: 'libs/images/marker-icon-blue.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-    });
-    var orangeIcon = new L.Icon({
-        iconUrl: 'libs/images/marker-icon-orange.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-    });
-    var redIcon = new L.Icon({
-        iconUrl: 'libs/images/marker-icon-red.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-    });
+
     function locator2deg(locator) {
         if(locator.length == 6) locator += "55AA";
         if(locator.length == 8) locator += "LL";
@@ -148,9 +151,6 @@
             for(var k in obj) {
                 spot = locator2deg(obj[k]);
                 var marker;
-
-// clusterOptions = markerClusterOptions(maxClusterRadius = 50)
-
                 if(k.substring(0,2) == 'L_') {
                     title = k.substring(2) + '<hr class="hrin">' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]) + '<br>meshtastic';
                     marker = L.marker(spot, {icon: orangeIcon}, { title: title });
