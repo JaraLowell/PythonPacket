@@ -30,14 +30,14 @@
   <script type="text/javascript">
     var layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
         attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-        minZoom: 4,
-        maxZoom: 15
+        minZoom: 3,
+        maxZoom: 16
     });
 
     var layer2 = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
         attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-        minZoom: 4,
-        maxZoom: 15
+        minZoom: 3,
+        maxZoom: 16
     });
 
     var map = L.map('map_canvas', {
@@ -59,37 +59,42 @@
 
     const layerControl = L.control.layers(baseLayers, overlayMaps).addTo(map);
 
-/*
-    map.on('zoomend', function (e) {
-        console.log(e.target._zoom);
-    });
-*/
-
-    /* Lets put our self on the map */
     var myspot = locator2deg('JO32MW49');
+    var mystation = '';
+    /*
+    var markers = L.markerClusterGroup({maxClusterRadius: function (mapZoom) {
+        if (mapZoom > 9) {
+            return 1;
+        } else {
+            return 28;
+        }
+    }});
+    */
+    var markers = L.markerClusterGroup({
+          maxClusterRadius: 28,
+          iconCreateFunction: null,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false,
+          zoomToBoundsOnClick: true});
+    var title;
 
-    var circle = L.circle(myspot, { color: 'red', fillColor: '#f03', fillOpacity: 0.5, radius: 250,}).addTo(map)
-    var markers = L.markerClusterGroup();
-
-    var title = 'NL0MSK';
+    var title = 'Creator';
     var marker = L.marker(myspot, { title: title});
     marker.bindPopup(title);
     markers.addLayer(marker);
-
     map.addLayer(markers);
 
     $('.leaflet-container').css('cursor','default');
-
     map.on('mousemove', onMapMove);
-
     var blueIcon = new L.Icon({
         iconUrl: 'libs/images/marker-icon-blue.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
     });
-
     var orangeIcon = new L.Icon({
         iconUrl: 'libs/images/marker-icon-orange.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
     });
-
+    var redIcon = new L.Icon({
+        iconUrl: 'libs/images/marker-icon-red.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+    });
     function locator2deg(locator) {
         if(locator.length == 6) locator += "55AA";
         if(locator.length == 8) locator += "LL";
@@ -127,22 +132,34 @@
     var lasttx = '';
     window.addEventListener("message", receiveMessage, false);
     function receiveMessage(event) {
-        if(event.data != lasttx) {
+        obj = JSON.parse(event.data);
+        if(obj.cmd == "homepoint") {
+            myspot[0] = obj.lat;
+            myspot[1] = obj.lon;
+            mystation = obj.station;
+            map.setView([obj.lat, obj.lon],9);
+            var circle = L.circle(myspot, { color: 'red', fillColor: '#f03', fillOpacity: 0.5, radius: 250,}).addTo(map);
+            return;
+        } else if(event.data != lasttx) {
             lasttx = event.data;
             console.log("new iframe data : ",event.data);
             markers.clearLayers();
-            obj = JSON.parse(event.data);
             var spot;
             for(var k in obj) {
                 spot = locator2deg(obj[k]);
                 var marker;
 
+// clusterOptions = markerClusterOptions(maxClusterRadius = 50)
+
                 if(k.substring(0,2) == 'L_') {
-                    title = k.substring(2) + '<br>' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]);
+                    title = k.substring(2) + '<hr class="hrin">' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]) + '<br>meshtastic';
                     marker = L.marker(spot, {icon: orangeIcon}, { title: title });
-                } else {
-                    if(k != 'NL0MSK') title = k + '<br>' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]); else title = k;
+                } else if(k != mystation) {
+                    title = k + '<hr class="hrin">' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]) + '<br>via Radio';
                     marker = L.marker(spot, {icon: blueIcon}, { title: title });
+                } else {
+                    title = k + '<hr class="hrin">Home Radio';
+                    marker = L.marker(spot, {icon: redIcon}, { title: title });
                 }
                 marker.bindPopup(title);
                 markers.addLayer(marker);

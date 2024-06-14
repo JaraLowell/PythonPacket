@@ -239,6 +239,10 @@
         if(tmp.cmd == 'bulkdone') {
             bulkdone = 1;
             updateScrollbar();
+        } else if(tmp.cmd == "homepoint") {
+            // window.document.getElementById("mapiframe").contentWindow.postMessage(JSON.stringify(Object.assign(obj,Loraobj)), '*');
+            console.log('home point for ' + tmp.station + ' set to ' + tmp.lat + '/' + tmp.lon)
+            window.document.getElementById("mapiframe").contentWindow.postMessage(JSON.stringify(tmp), '*');
         } else if(tmp.cmd == 'cmd1') {
             if(activechannel == 0) {
                 if(tmp.data.substr(0,2) == '@B') $('#infbuf').text(tmp.data.substr(3));

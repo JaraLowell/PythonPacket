@@ -124,6 +124,7 @@ async def register(websocket):
         for lines in channelbuffers:
             await websocket.send(json.dumps(lines[0]))
     await websocket.send('{"cmd":"bulkdone"}')
+    await websocket.send('{"cmd":"homepoint","station":"' + config.get('radio', 'mycall') + '","lat":"' + str(config.get('radio', 'latitude')) + '","lon":"' + str(config.get('radio', 'longitude')) + '"}')
 
 async def unregister(websocket):
     global USERS
@@ -423,12 +424,16 @@ def logheard(callsign, cmd, info):
                 MHeard[callsign][0] = config.get('radio', 'sysop')
     elif cmd == 6:
         if callsign in MHeard:
-            MHeard[callsign][1] = str(info)
+            if str(info) != '':
+                MHeard[callsign][1] = str(info)
         else:
             MHeard[callsign] = ['', str(info), tnow, tnow, 1, 0, 0, 0]
+        MHeard[callsign][4] += 1
+        MHeard[callsign][3] = tnow
     elif cmd == 3:
         if callsign in MHeard:
             MHeard[callsign][6] = tnow
+            MHeard[callsign][4] += 1
             MHeard[callsign][7] += 1
             if MHeard[callsign][5] == 0:
                 MHeard[callsign][5] = tnow
@@ -628,7 +633,22 @@ async def go_serial():
                     locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}[0-9]{2}', data_decode.upper())
                     if not locator:
                         locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}', data_decode.upper())
-                    
+
+                    # APRS Location to locator (hopfully)
+                    if not locator:
+                        ymp = str(re.findall(r'[0-9]{4}[.][0-9]{2}[N,S]/.[0-9]{4}[.][0-9]{2}[E,W]', data_decode))
+                        if (len(ymp)):
+                            direction = {'N':1, 'S':-1, 'E': 1, 'W':-1}
+                            new = (ymp[2:4] + ' ' + ymp[4:6] + ' ' + ymp[7:9] + ' ' + ymp[9:10]).split()
+                            new_dir = new.pop()
+                            new.extend([0,0,0])
+                            lat = (int(new[0])+int(new[1])/60.0+int(new[2])/3600.0) * direction[new_dir]
+                            new = (ymp[12:14] + ' ' + ymp[14:16] + ' ' + ymp[17:19] + ' ' + ymp[19:20]).split()
+                            new_dir = new.pop()
+                            new.extend([0,0,0])
+                            lon = (int(new[0])+int(new[1])/60.0+int(new[2])/3600.0) * direction[new_dir]
+                            locator = [LatLon2qth(lat, lon),12]
+
                     if not locator:
                          logheard(callsign, 6, '')
                     else:
