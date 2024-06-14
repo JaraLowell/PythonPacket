@@ -636,18 +636,19 @@ async def go_serial():
 
                     # APRS Location to locator (hopfully)
                     if not locator:
-                        ymp = str(re.findall(r'[0-9]{4}[.][0-9]{2}[N,S]/.[0-9]{4}[.][0-9]{2}[E,W]', data_decode))
-                        if (len(ymp)):
-                            direction = {'N':1, 'S':-1, 'E': 1, 'W':-1}
-                            new = (ymp[2:4] + ' ' + ymp[4:6] + ' ' + ymp[7:9] + ' ' + ymp[9:10]).split()
-                            new_dir = new.pop()
-                            new.extend([0,0,0])
-                            lat = (int(new[0])+int(new[1])/60.0+int(new[2])/3600.0) * direction[new_dir]
-                            new = (ymp[12:14] + ' ' + ymp[14:16] + ' ' + ymp[17:19] + ' ' + ymp[19:20]).split()
-                            new_dir = new.pop()
-                            new.extend([0,0,0])
-                            lon = (int(new[0])+int(new[1])/60.0+int(new[2])/3600.0) * direction[new_dir]
-                            locator = [LatLon2qth(lat, lon),12]
+                        if len(data_decode) >= 20:
+                            ymp = str(re.findall(r'[0-9]{4}[.][0-9]{2}[N,S]/.[0-9]{4}[.][0-9]{2}[E,W]', data_decode))
+                            if len(ymp) == 22:
+                                direction = {'N':1, 'S':-1, 'E': 1, 'W':-1}
+                                new = (ymp[2:4] + ' ' + ymp[4:6] + ' ' + ymp[7:9] + ' ' + ymp[9:10]).split()
+                                new_dir = new.pop()
+                                new.extend([0,0,0])
+                                lat = (int(new[0])+int(new[1])/60.0+int(new[2])/3600.0) * direction[new_dir]
+                                new = (ymp[12:14] + ' ' + ymp[14:16] + ' ' + ymp[17:19] + ' ' + ymp[19:20]).split()
+                                new_dir = new.pop()
+                                new.extend([0,0,0])
+                                lon = (int(new[0])+int(new[1])/60.0+int(new[2])/3600.0) * direction[new_dir]
+                                locator = [LatLon2qth(lat, lon),12]
 
                     if not locator:
                          logheard(callsign, 6, '')
