@@ -344,6 +344,7 @@
                         tablerow += '&nbsp;</td></tr></table>';
                     }
                     $("#LoraMH").html(tablerow);
+                    if(channel == 9) { $('#ch9').show(); }
                 } else {
                     var name;
                     for(var k in tmp) {
@@ -375,6 +376,7 @@
                 if($("#" + tmp.id).length != 0) {
                     $("#info" + tmp.id).text(tmp.b + '% ' + tmp.v + 'V');
                 }
+                $('#ch9').show();
                 return;
             }
 

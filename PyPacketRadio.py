@@ -305,7 +305,7 @@ def on_meshtastic_message(packet, loop=None):
         text_from  = packet["fromId"][1:]
         text_mqtt = ''
         text_msgs = ''
-
+        fromraw = text_from
         if text_from in LoraDB:
             if LoraDB[text_from][1] != '':
                 text_from = LoraDB[text_from][1] + " (" + LoraDB[text_from][2] + ")"
@@ -342,10 +342,10 @@ def on_meshtastic_message(packet, loop=None):
                 # if not is_hour_between(1, 10) and "viaMqtt" not in packet:
                 #     sendqueue.append([0,'[LoraNET] Position beacon from ' + text_from + ' QTH ' + qth[:-2]])
                 text_raws = text_msgs
-                sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_msgs])
+                # sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_msgs])
                 logLora(packet["fromId"][1:], ['POSITION_APP', text["latitude"], text["longitude"], text["altitude"]])
                 # ["latitudeI"] ["longitude"] ["altitude"] ["time"] ["precisionBits"]
-                donoting = False
+                donoting = True
         if data["portnum"] == "NODEINFO_APP":
             text = data["user"]
             if "shortName" in text:
@@ -370,15 +370,15 @@ def on_meshtastic_message(packet, loop=None):
 
         if donoting == True:
             logLora(packet["fromId"][1:],['UPDATETIME'])
-        elif text_raws != '' and lora_lastmsg != text_raws:
+
+        if "viaMqtt" in packet:
+            LoraDB[fromraw][10] = ' via mqtt'
+        else:
+            LoraDB[fromraw][10] = ''
+
+        if donoting == False and text_raws != '' and lora_lastmsg != text_raws:
             lora_lastmsg = text_raws
-            fromraw = packet["fromId"][1:]
-            if "viaMqtt" in packet:
-                LoraDB[fromraw][10] = ' via mqtt'
-                print("[LoraNet]\33[0;37m mqtt " + text_from + "\33[0m")
-            else:
-                LoraDB[fromraw][10] = ''
-                print("[LoraNet]\33[0;37m fm " + text_from + "\33[0m")
+            print("[LoraNet]\33[0;37m mqtt " + text_from + LoraDB[fromraw][10] + "\33[0m")
             _print('\33[0;32m                     ' + text_raws + '\33[0m')
 
 def updatesnodes():
@@ -911,7 +911,7 @@ if __name__ == "__main__":
             pickle.dump(monitorbuffer, f)
         with open(ChanLogPath, 'wb') as f:
             pickle.dump(channelbuffers, f)
-        print('Saved MHeard.json')
+        print('Saved Databases')
         print("\33[0;33mPut TNC in Un-attended mode...\33[1;37m\33[0m")
         ser.write(b'\x00\x01\x01\x4d\x4e') # ^MN
         ser.readline()
