@@ -131,9 +131,12 @@ async def unregister(websocket):
     print("[Network]\33[32m WebSocket connection closed for", str(websocket.remote_address)[1:-1].replace('\'','').replace(', ',':') + "\33[0m")
     USERS.remove(websocket)
 
+OnLora = False
+
 async def mysocket(websocket, path):
     global ACTIVECHAN
     global ACTCHANNELS
+    global OnLora
     await register(websocket)
     try:
         async for message in websocket:
@@ -142,11 +145,14 @@ async def mysocket(websocket, path):
                     tmp2 = int(message[1:])
                     if tmp2 == 9:
                         # LoraNet
+                        OnLora = True
                         print('Websocket on Lora Net')
                     elif tmp2 == 10:
                         # APRS
+                        OnLora = False
                         print('Websocket on APRS Net')
                     else:
+                        OnLora = False
                         ACTIVECHAN = num2byte(tmp2)
                         ser.write(ACTIVECHAN + b'\x01\x00\x49')
                         tmp = ser.readline()[2:-1].decode()
@@ -158,9 +164,14 @@ async def mysocket(websocket, path):
                         await sendmsg(tmp2,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
             else:
                 print("[Network] " + message + "\33[0m")
-                ch = int(ACTIVECHAN.hex(), 16)
-                await sendmsg(ch,'echo',message)
-                sendqueue.append([ch,message])
+                # need know what channel we actually sennding on . . .
+                if OnLora:
+                    meshtastic_client.sendText(message)
+                    await sendmsg(9,'echo',message)
+                else:
+                    ch = int(ACTIVECHAN.hex(), 16)
+                    await sendmsg(ch,'echo',message)
+                    sendqueue.append([ch,message])
     except Exception as e:
         print("[Network] \33[1;31m" + repr(e))
     finally:
@@ -203,7 +214,7 @@ async def main():
             on_lost_meshtastic_connection,
             "meshtastic.connection.lost",
         )
-
+    # Need add active channel here
     while True:
         text = await ainput("")
         await sendmsg(0,'echo',text[:-1])
@@ -283,21 +294,6 @@ def logLora(nodeID, info):
         LoraDB[nodeID][4] = info[2] # longitude
         LoraDB[nodeID][5] = info[3] # altitude
         LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])[:-2]
-
-
-async def sendloralog():
-    if len(LoraDB):
-        textmessage = ''
-        for items in LoraDB:
-            textmessage += '{\\"id\\":\\"' + items[1:] + '\\",'
-            textmessage += '\\"name\\":\\"' + LoraDB[items][1] + '\\",'
-            textmessage += '\\"desc\\":\\"' + LoraDB[items][2] + '\\",'
-            textmessage += '\\"lat\\":\\"' + str(LoraDB[items][3]) + '\\",'
-            textmessage += '\\"lon\\":\\"' + str(LoraDB[items][4]) + '\\",'
-            textmessage += '\\"first\\":' + str(LoraDB[items][8]) + ','
-            textmessage += '\\"last\\":' + str(LoraDB[items][0]) + '},'
-        print(textmessage)
-        # await sendmsg(999, 'loraHeard', textmessage):
 
 # import yaml
 def on_meshtastic_message(packet, loop=None):

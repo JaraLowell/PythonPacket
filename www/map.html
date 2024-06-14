@@ -53,8 +53,8 @@
 
     var map = L.map('map_canvas', {
         layers: [layer2, layer],
-        center: [52.9548, 7.0384],
-        zoom: 9
+        center: [52.005, 3.9877],
+        zoom: 6
     });
 
     const baseLayers = {
@@ -140,7 +140,7 @@
             myspot[0] = obj.lat;
             myspot[1] = obj.lon;
             mystation = obj.station;
-            map.setView([obj.lat, obj.lon],9);
+            map.setView([obj.lat, obj.lon],11);
             var circle = L.circle(myspot, { color: 'red', fillColor: '#f03', fillOpacity: 0.5, radius: 250,}).addTo(map);
             return;
         } else if(event.data != lasttx) {
