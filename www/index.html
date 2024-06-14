@@ -345,15 +345,17 @@
                     }
                     $("#LoraMH").html(tablerow);
                 } else {
+                    var name;
                     for(var k in tmp) {
-                        tmpname = k;
-                        var name = tmp[tmpname][2];
-                        if(name == '') name = '!' + k
-                        $("#lname" + k).html(name)
-                        name = tmp[tmpname][1];
+                        name = '';
+                        if(tmp[k][10] != '') name = '&#128423; ';
+                        if(tmp[k][2]  != '') name += tmp[k][2]; else name += '!' + k;
+                        $("#lname" + k).html(name);
+
+                        name = tmp[k][1];
                         if(name == '') name = '&nbsp;'
                         $("#sname" + k).html(name)
-                        $("#time" + k).html(ezDate(tmp[tmpname][0]));
+                        $("#time" + k).html(ezDate(tmp[k][0]));
                     }
                 }
             }

@@ -282,7 +282,7 @@ def logLora(nodeID, info):
     if nodeID in LoraDB:
         LoraDB[nodeID][0] = tnow # time last seen
     else:
-        LoraDB[nodeID] = [tnow, '', '', '', '', '', '', '', tnow, '']
+        LoraDB[nodeID] = [tnow, '', '', '', '', '', '', '', tnow, '', '']
 
     if info[0] == 'NODEINFO_APP':
         LoraDB[nodeID][1] = info[1] # short name
@@ -372,9 +372,12 @@ def on_meshtastic_message(packet, loop=None):
             logLora(packet["fromId"][1:],['UPDATETIME'])
         elif text_raws != '' and lora_lastmsg != text_raws:
             lora_lastmsg = text_raws
+            fromraw = packet["fromId"][1:]
             if "viaMqtt" in packet:
+                LoraDB[fromraw][10] = ' via mqtt'
                 print("[LoraNet]\33[0;37m mqtt " + text_from + "\33[0m")
             else:
+                LoraDB[fromraw][10] = ''
                 print("[LoraNet]\33[0;37m fm " + text_from + "\33[0m")
             _print('\33[0;32m                     ' + text_raws + '\33[0m')
 
@@ -388,7 +391,7 @@ def updatesnodes():
         if nodeID in LoraDB:
             LoraDB[nodeID][0] = nodeLast
         else:
-            LoraDB[nodeID] = [nodeLast, '', '', '', '', '', '', '', nodeLast, '']
+            LoraDB[nodeID] = [nodeLast, '', '', '', '', '', '', '', nodeLast, '', '']
 
         if "user" in info:                
             LoraDB[nodeID][1] = str(info['user']['shortName'])
@@ -400,6 +403,8 @@ def updatesnodes():
             LoraDB[nodeID][4] = info['position']['longitude']
             LoraDB[nodeID][5] = info['position']['altitude']
             LoraDB[nodeID][9] = LatLon2qth(info['position']['latitude'],info['position']['longitude'])[:-2]
+        if "viaMqtt" in info:
+            LoraDB[nodeID][10] = ' via mqtt'
 
 #-------------------------------------------------------------- TNC WA8DED ---------------------------------------------------------------------------
 BEACONDELAY = int(config.get('radio', 'beacon_time'))
