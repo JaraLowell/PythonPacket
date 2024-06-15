@@ -122,7 +122,7 @@
                     var marker;
                     if(k.substring(0,2) == 'L_') {
                         if(obj[k][0] != '' && obj[k][1] != '') {
-                            title = k.substring(2) + '<hr class="hrin">' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]) + '<br>meshtastic';
+                            title = k.substring(2) + '<hr class="hrin">' + calc_gc(obj[k][0], obj[k][1], myspot[0], myspot[1]) + '<br>meshtastic';
                             marker = L.marker(obj[k], {icon: orangeIcon}, { title: title });
                         }
                     } else if(k != mystation) {
