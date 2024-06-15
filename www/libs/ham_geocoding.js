@@ -107,33 +107,18 @@ function write_Maidenhead(x, y) {
 			tmp[0]="0"+tmp[0];
 			latSec=tmp[0]+"."+tmp[1];
 		
-		// computes and formats latitude in decimal 00.000000 format
 		var latDec= (Math.round(lat * 1000000) / 1000000).toFixed(6);
-		// make a string
 		latDec=latDec+'';
-		// split to get deg and decimals
-		var tmp=latDec.split(".");
-		// format degrees to 00 format
-				while (tmp[0].length <2)
-					tmp[0]="0"+tmp[0];
-		// rebuild to 00.000000
-		latDec=tmp[0]+"."+tmp[1];
 		
-		// computes and formats longitude in decimal 000.000000 format
 		var lngDec= (Math.round(lng * 1000000) / 1000000).toFixed(6);
 		lngDec=lngDec+'';
-		var tmp=lngDec.split(".");
-				while (tmp[0].length <3)
-					tmp[0]="0"+tmp[0];
-		lngDec=tmp[0]+"."+tmp[1];
 		
 		// construct array for return
-        var LatLng = []; // create an array ( easier than new Array(4) )
-		// adds signs and separators
-		LatLng['latDec']= latDec + latDir;
-		LatLng['lngDec']= lngDec + lngDir;
-		LatLng['latDeg']= latDeg + "°" + latMin + "'" + latSec + "\""+ latDir;
-		LatLng['lngDeg']= lngDeg + "°" + lngMin + "'" + lngSec + "\""+ lngDir;
+        var LatLng = [];
+		LatLng['latDec'] = latDir + ' ' + latDec;
+		LatLng['lngDec'] = lngDir + ' ' + lngDec;
+		LatLng['latDeg'] = latDeg + "°" + latMin + "'" + latSec + "\""+ latDir;
+		LatLng['lngDeg'] = lngDeg + "°" + lngMin + "'" + lngSec + "\""+ lngDir;
    return LatLng
 }
 
