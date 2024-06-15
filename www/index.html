@@ -75,7 +75,7 @@
     </div>
 
 
-    <div class="action-box">
+    <div class="action-box" id="chat-input">
       <textarea class="action-box-input" type="text" placeholder="Type message..."></textarea>
       <button class="action-box-submit" type="submit" onclick="insertMessage()"><img src="broadcast.png" height="50%" width="50%"></button>
     </div>
@@ -478,6 +478,7 @@
             $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
 
             $(".messages").hide();
+            $("#chat-input").hide();
             for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = '';
 
             if(activechannel < 9) {
@@ -493,6 +494,7 @@
             else { $('#other').hide(); $('#montable').show(); $('#chntable').hide(); $('#LoraMH').hide(); $('#RadioMH').show(); }
 
             $(".messages").show();
+            $("#chat-input").show();
             $(".tableheard").hide();
             $(".map").hide();
 
@@ -503,11 +505,13 @@
             $(event.target).addClass('tnc-active');
 
             if(event.target.id == 'mnu6') {
+                $("#chat-input").hide();
                 $(".map").show();
                 $(".messages").hide();
                 $(".tableheard").hide();
             }
             if(event.target.id == 'mnu5') {
+                $("#chat-input").hide();
                 $(".tableheard").show();
                 $(".messages").hide();
                 $(".map").hide();
@@ -520,6 +524,7 @@
                     for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = '';
                 }
                 $('#mnu4').addClass('tnc-active');
+                $("#chat-input").show();
                 $(".tableheard").hide();
                 $(".messages").show();
                 $('#montable').show();
