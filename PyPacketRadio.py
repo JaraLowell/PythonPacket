@@ -405,7 +405,7 @@ def updatesnodes():
                 LoraDB[nodeID][4] = tmp['longitude']
                 LoraDB[nodeID][9] = LatLon2qth(tmp['latitude'],tmp['longitude'])[:-2]
             if "altitude" in tmp:
-                LoraDB[nodeID][5] = info['position']['altitude']
+                LoraDB[nodeID][5] = tmp['altitude']
         if "viaMqtt" in info:
             LoraDB[nodeID][10] = ' via mqtt'
         if "snr" in info and info['snr'] is not None:
