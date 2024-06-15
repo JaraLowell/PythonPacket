@@ -60,7 +60,9 @@
     <div class="messages">
       <div class="messages-content"></div>
       <div id="RadioMH" class="side-content"></div>
-      <div id="LoraMH" class="side-content" style="display:none"></div>
+      <div id="LoraMH" class="side-content" style="display:none">
+        <div id="LoraMH2" style="display: flex; flex-direction: column-reverse;"></div>
+      </div>  
       <div class="leds"><div id="led-red" class="led-red"></div><div id="led-green" class="led-green"></div></div>
     </div>
 
@@ -343,7 +345,7 @@
                         tablerow += '&nbsp;</td><td class="LHInfo" style="width: 3px; border-radius: 0px 0px 5px 0px;" rowspan="2"></td></tr><tr><td class="LHInfo" style="text-align: end;" id="time' + k + '">';
                         tablerow += '&nbsp;</td></tr></table>';
                     }
-                    $("#LoraMH").html(tablerow);
+                    $("#LoraMH2").html(tablerow);
                     if(channel == 9) { $('#ch9').show(); }
                 } else {
                     var name;
@@ -357,6 +359,8 @@
                         if(name == '') name = '&nbsp;'
                         $("#sname" + k).html(name)
                         $("#time" + k).html(ezDate(tmp[k][0]));
+                        
+                        $("#" + k).css({'order': tmp[k][0]});
                     }
                 }
             }
