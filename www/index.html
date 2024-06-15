@@ -121,7 +121,7 @@
     var wsUri = url;
     var socket = new WebSocket(wsUri);
     var bulkdone = 0;
-    $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
+    $(".led-green").fadeTo(111,1.0).delay(10).fadeTo(111,0.12);
 
     var wasallnone = 1;
     var mychat;
@@ -170,7 +170,7 @@
         }
         mychat = msgText;
         socket.send(msgText);
-        $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
+        $(".led-green").fadeTo(111,1.0).delay(10).fadeTo(111,0.12);
         updateScrollbar();
         userTypingClear();
     };
@@ -235,7 +235,7 @@
             socket2.onclose   = socket.onclose;
             socket2.onerror   = socket.onerror;
             socket = socket2;
-            $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
+            $(".led-green").fadeTo(111,1.0).delay(10).fadeTo(111,0.12);
         }).bind(this), 7000);
     };
 
@@ -499,7 +499,7 @@
             if(activechannel == ch) { activechannel = 0; $('#mnu4').addClass('tnc-active'); }
             else { activechannel = ch; $(this).toggleClass('tnc-active tnc-default'); }
             socket.send('@' + activechannel);
-            $(".led-green").fadeTo(111,1.0).delay(250).fadeTo(111,0.12);
+            $(".led-green").fadeTo(111,1.0).delay(10).fadeTo(111,0.12);
 
             $(".messages").hide();
             $("#chat-input").hide();

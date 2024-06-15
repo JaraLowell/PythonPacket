@@ -792,7 +792,7 @@ async def cleaner():
                         wjson = json.load(url)
                         winddir = ['N','NNO','NO','ONO','O','OZO','ZO','ZZO','Z','ZZW','ZW','WZW','W','WNW','NW','NNW','N']
                         wtet  = winddir[round(int(wjson['winddir_avg10m'])*16/360)]
-                        sendqueue.append([0,'Weather at ' + myqth + ', Wind ' + wtet + ' ' + str(wjson['windspeedbf_avg10m']) + 'bf, Temp ' + str(round(wjson['tempc'])) + 'C, Hum ' + str(wjson['humidity']) + '%, Baro ' + str(round(wjson['baromabshpa'])) + 'hpa @ ' + time.strftime("%H:%M", time.localtime())])
+                        sendqueue.append([0,'Weather at ' + myqth[:-2] + ', Wind ' + wtet + ' ' + str(wjson['windspeedbf_avg10m']) + 'bf, Temp ' + str(round(wjson['tempc'])) + 'C, Hum ' + str(wjson['humidity']) + '%, Baro ' + str(round(wjson['baromabshpa'])) + 'hpa @ ' + time.strftime("%H:%M", time.localtime())])
                     except:
                         print('[ DEBUG ] Weather Grab from ' + weatherurl + ' Failed!')
                         sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
