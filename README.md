@@ -13,6 +13,11 @@ with a few more people we can make this a great add on packat software for the h
 
 Mine is running on a Raspberry PI, and then any computer in my house can access it via a web site as seen in the images below.
 
+![Language](https://img.shields.io/badge/language-Python-blue.svg) 
+![Language](https://img.shields.io/badge/language-JavaScript-yellow.svg) 
+![Language](https://img.shields.io/badge/language-HTML-red.svg) 
+![Language](https://img.shields.io/badge/language-CSS-563d7c.svg) 
+
 Monitor
 ![afbeelding](https://i.gyazo.com/afdd00d5f3eb70dc1432e2a41d75ab0a.png)
 
