@@ -147,7 +147,7 @@
                         marker = L.marker(spot, {icon: blueIcon}, { title: title });
                     } else {
                         title = k + '<hr class="hrin">Home Radio';
-                        marker = L.marker(spot, {icon: redIcon}, { title: title });
+                        marker = L.marker([obj.lat, obj.lon], {icon: redIcon}, { title: title });
                     }
                     marker.bindPopup(title);
                     markers.addLayer(marker);

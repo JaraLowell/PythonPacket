@@ -293,7 +293,7 @@ def logLora(nodeID, info):
         LoraDB[nodeID][3] = info[1] # latitude
         LoraDB[nodeID][4] = info[2] # longitude
         LoraDB[nodeID][5] = info[3] # altitude
-        LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])[:-2]
+        LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])
 
 # import yaml
 def on_meshtastic_message(packet, loop=None):
@@ -403,7 +403,7 @@ def updatesnodes():
             if "latitude" in tmp and "longitude" in tmp:
                 LoraDB[nodeID][3] = tmp['latitude']
                 LoraDB[nodeID][4] = tmp['longitude']
-                LoraDB[nodeID][9] = LatLon2qth(tmp['latitude'],tmp['longitude'])[:-2]
+                LoraDB[nodeID][9] = LatLon2qth(tmp['latitude'],tmp['longitude'])
             if "altitude" in tmp:
                 LoraDB[nodeID][5] = tmp['altitude']
         if "viaMqtt" in info:
