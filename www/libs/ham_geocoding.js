@@ -119,6 +119,7 @@ function write_Maidenhead(x, y) {
 		LatLng['lngDec'] = lngDir + ' ' + lngDec;
 		LatLng['latDeg'] = latDeg + "°" + latMin + "'" + latSec + "\""+ latDir;
 		LatLng['lngDeg'] = lngDeg + "°" + lngMin + "'" + lngSec + "\""+ lngDir;
+		LatLng['Dist']   = calc_gc(latDec, lngDec, myspot[1], myspot[0]);
    return LatLng
 }
 
@@ -235,6 +236,7 @@ return result;
 					$('#lngDeg').html(LatLng2.lngDeg);
 					$('#latDec').html(LatLng2.latDec);
 					$('#lngDec').html(LatLng2.lngDec);
+					$('#DistFrom').html(LatLng2.Dist);
 					var locator = LatLng2Loc(lat,lng, 10);
 					$('#locator').html(locator);
 					};
