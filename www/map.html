@@ -120,12 +120,14 @@
 
     // Recieve the map nodes from main window;
     var lasttx = '';
+    var myspot = [];
     window.addEventListener("message", receiveMessage, false);
     function receiveMessage(event) {
         obj = JSON.parse(event.data);
         if(obj.cmd == "homepoint") {
             myspot[0] = obj.lat;
             myspot[1] = obj.lon;
+            myspot = [obj.lat, obj.lon];
             mystation = obj.station;
             map.setView([obj.lat, obj.lon],11);
             var circle = L.circle(myspot, { color: 'green', fillColor: '#f03', fillOpacity: 0.5, radius: 10,}).addTo(map);
@@ -147,7 +149,7 @@
                         marker = L.marker(spot, {icon: blueIcon}, { title: title });
                     } else {
                         title = k + '<hr class="hrin">Home Radio';
-                        marker = L.marker([obj.lat, obj.lon], {icon: redIcon}, { title: title });
+                        marker = L.marker(myspot, {icon: redIcon}, { title: title });
                     }
                     marker.bindPopup(title);
                     markers.addLayer(marker);
