@@ -130,10 +130,10 @@ function write_Maidenhead(x, y) {
 		// construct array for return
         var LatLng = []; // create an array ( easier than new Array(4) )
 		// adds signs and separators
-		LatLng['latDec']= latDec + " " + latDir;
-		LatLng['lngDec']= lngDec + " " + lngDir;
-		LatLng['latDeg']= latDeg + ":" + latMin + "'" + latSec + "''"+ latDir;
-		LatLng['lngDeg']= lngDeg + ":" + lngMin + "'" + lngSec + "''"+ lngDir;
+		LatLng['latDec']= latDec + latDir;
+		LatLng['lngDec']= lngDec + lngDir;
+		LatLng['latDeg']= latDeg + "°" + latMin + "'" + latSec + "\""+ latDir;
+		LatLng['lngDeg']= lngDeg + "°" + lngMin + "'" + lngSec + "\""+ lngDir;
    return LatLng
 }
 
@@ -248,6 +248,8 @@ return result;
 					var LatLng2 = write_Maidenhead (lat,lng);
 					$('#latDeg').html(LatLng2.latDeg);
 					$('#lngDeg').html(LatLng2.lngDeg);
+					$('#latDec').html(LatLng2.latDec);
+					$('#lngDec').html(LatLng2.lngDec);
 					var locator = LatLng2Loc(lat,lng, 10);
 					$('#locator').html(locator);
 					};
