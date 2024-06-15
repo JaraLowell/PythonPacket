@@ -362,6 +362,11 @@
                 } else {
                     var name;
                     for(var k in tmp) {
+                        // Hide old fields...
+                        var age = Math.round((Math.floor(new Date().getTime() / 1000) - tmp[k][0]) / 86400,0);
+                        if(age > 7 && $("#" + k).is(":visible")) $("#" + k).hide();
+                        else if(age <= 7 && $("#" + k).is(":hidden")) $("#" + k).show();
+
                         name = '';
                         if(tmp[k][10] != '') name = '&#128423; ';
                         if(tmp[k][2]  != '') name += tmp[k][2]; else name += '!' + k;
