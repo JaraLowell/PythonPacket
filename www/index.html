@@ -59,8 +59,10 @@
     </div>
     <div class="messages">
       <div class="messages-content"></div>
-      <div id="RadioMH" class="side-content"></div>
-      <div id="LoraMH" class="side-content" style="display:none">
+      <div id="RadioMH" class="side-content RadioMH-content">
+        <div id="RadioMH2"></div>
+      </div>
+      <div id="LoraMH" class="side-content LoraaMH-content" style="display:none">
         <div id="LoraMH2" style="display: flex; flex-direction: column-reverse;"></div>
       </div>  
       <div class="leds"><div id="led-red" class="led-red"></div><div id="led-green" class="led-green"></div></div>
@@ -109,6 +111,9 @@
 
     messages = $(".messages-content");
     mheards = $(".mheard-content");
+
+    loraheard = $(".LoraaMH-content");
+    radioheard = $(".RadioMH-content");
 
     isTyping = true;
     uctTimer = null;
@@ -184,6 +189,8 @@
     $(window).load(function() {
         mheards.mCustomScrollbar();
         messages.mCustomScrollbar();
+        loraheard.mCustomScrollbar();
+        radioheard.mCustomScrollbar();
     });
 
 
@@ -349,6 +356,7 @@
                         tablerow += '&nbsp;</td><td class="LHInfo" style="width: 3px; border-radius: 0px 0px 5px 0px;" rowspan="2"></td></tr><tr><td class="LHInfo" id="dst' + k + '"></td><td class="LHInfo" id="time' + k + '">';
                         tablerow += '&nbsp;</td></tr></table>';
                     }
+                    tablerow += '<br>&nbsp;';
                     $("#LoraMH2").html(tablerow);
                     if(channel == 9) { $('#ch9').show(); }
                 } else {
@@ -610,7 +618,8 @@
                 tablerow += '</tr>';
             }
             // $(".side-content").html(output);
-            $("#RadioMH").html(output);
+            output += '<br>&nbsp;';
+            $("#RadioMH2").html(output);
             tablerow += '</table>';
             // $(".mheard-content").html(tablerow);
             $('#mCSB_1_container').html(tablerow);
