@@ -28,13 +28,13 @@
   </div>
 
   <script type="text/javascript">
-    var layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+    var layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
         attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         minZoom: 3,
         maxZoom: 16
     });
 
-    var layer2 = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+    var layer2 = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
         attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         minZoom: 3,
         maxZoom: 16
@@ -52,42 +52,29 @@
     });
 
     var map = L.map('map_canvas', {
-        layers: [layer2, layer],
+        layers: [layer, layer2],
         center: [52.005, 3.9877],
         zoom: 6
     });
 
     const baseLayers = {
-        'Light': layer2,
-        'Dark': layer
+        'Dark': layer2, 'Light': layer
     };
 
-    var maidenhead = L.maidenhead().addTo(map);
-
+    var maidenhead = L.maidenhead();
     var overlayMaps = {
         'QTH Locator': maidenhead
     };
-
     const layerControl = L.control.layers(baseLayers, overlayMaps).addTo(map);
 
     var myspot = locator2deg('JO32MW49');
     var mystation = '';
-    /*
-    var markers = L.markerClusterGroup({maxClusterRadius: function (mapZoom) {
-        if (mapZoom > 9) {
-            return 1;
-        } else {
-            return 28;
-        }
-    }});
-    */
     var markers = L.markerClusterGroup({
           maxClusterRadius: 28,
           iconCreateFunction: null,
           spiderfyOnMaxZoom: true,
           showCoverageOnHover: false,
           zoomToBoundsOnClick: true});
-    var title;
 
     var title = 'Creator';
     var marker = L.marker(myspot, {icon: redIcon}, { title: title});
