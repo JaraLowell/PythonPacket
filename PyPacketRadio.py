@@ -399,10 +399,13 @@ def updatesnodes():
             LoraDB[nodeID][6] = str(info['user']['macaddr'])
             LoraDB[nodeID][7] = str(info['user']['hwModel'])
         if "position" in info:
-            LoraDB[nodeID][3] = info['position']['latitude']
-            LoraDB[nodeID][4] = info['position']['longitude']
-            LoraDB[nodeID][5] = info['position']['altitude']
-            LoraDB[nodeID][9] = LatLon2qth(info['position']['latitude'],info['position']['longitude'])[:-2]
+            tmp = info['position']
+            if "latitude" in tmp and "longitude" in tmp:
+                LoraDB[nodeID][3] = tmp['latitude']
+                LoraDB[nodeID][4] = tmp['longitude']
+                LoraDB[nodeID][9] = LatLon2qth(info['position']['latitude'],info['position']['longitude'])[:-2]
+            if "altitude" in tmp:
+                LoraDB[nodeID][5] = info['position']['altitude']
         if "viaMqtt" in info:
             LoraDB[nodeID][10] = ' via mqtt'
         if "snr" in info and info['snr'] is not None:
