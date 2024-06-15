@@ -34,14 +34,15 @@
     // Maps
     var layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',minZoom: 3,maxZoom: 17});
     var layer2 = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',minZoom: 3,maxZoom: 17});
+    var layer3 = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {attribution: 'Map data ESRI.com Sat contributors',minZoom: 3,maxZoom: 17});
 
     // Coloured Icons 
     var blueIcon = new L.Icon({iconUrl: 'libs/images/marker-icon-blue.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]});
     var orangeIcon = new L.Icon({iconUrl: 'libs/images/marker-icon-orange.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]});
     var redIcon = new L.Icon({iconUrl: 'libs/images/marker-icon-red.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]});
-    var map = L.map('map_canvas', {layers: [layer, layer2],center: [52.005, 3.9877],zoom: 6});
+    var map = L.map('map_canvas', {layers: [layer, layer2, layer3],center: [52.005, 3.9877],zoom: 6});
 
-    const baseLayers = {'Dark': layer2, 'Light': layer};
+    const baseLayers = {'Satelite': layer3, 'Dark': layer2, 'Light': layer};
 
     var maidenhead = L.maidenhead();
     var overlayMaps = {'QTH Locator': maidenhead};
