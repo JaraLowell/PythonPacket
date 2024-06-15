@@ -124,15 +124,17 @@ iframe {
 
 .LHInfo {
     background-color: #212121;
-    text-align: center;
+    text-align: end;
     font-size: 12px;
     color: transparent;
-    text-shadow: 0 0 0 #e7e7e7;
+    text-shadow: 0 0 0 #b5b5b5;
+    width: 40%;
 }
 
 .LHInfo2 {
   padding-bottom: 4px;
   height: 31px;
+  width: 50px;
   background-color: #212121;
   text-align: center;
   font-size: 20px;

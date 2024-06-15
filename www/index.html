@@ -125,6 +125,8 @@
     var disc = 0;
     var mheard = {};
     var Loraobj = new Object();
+    var mylat;
+    var mylon;
     setInterval(mheardshow, 60000);
 
     window.userTypingClear = function() {
@@ -244,6 +246,8 @@
         } else if(tmp.cmd == "homepoint") {
             // window.document.getElementById("mapiframe").contentWindow.postMessage(JSON.stringify(Object.assign(obj,Loraobj)), '*');
             console.log('home point for ' + tmp.station + ' set to ' + tmp.lat + '/' + tmp.lon)
+            mylat = tmp.lat;
+            mylon = tmp.lon;
             window.document.getElementById("mapiframe").contentWindow.postMessage(JSON.stringify(tmp), '*');
         } else if(tmp.cmd == 'cmd1') {
             if(activechannel == 0) {
@@ -335,14 +339,14 @@
                 if(index != lenz) {
                     for(var k in tmp) {
                         tmpname = k;
-                        tablerow += '<table class="LHTable" id="' + k + '"><tr><td colspan="3" class="LHTop" id="lname' + k + '">';
+                        tablerow += '<table class="LHTable" id="' + k + '"><tr><td colspan="4" class="LHTop" id="lname' + k + '">';
                         var name = tmp[tmpname][2];
                         if(name == '') name = '!' + k
-                        tablerow += name + '</td></tr><tr><td class="LHInfo2" style="width: 50px;" rowspan="2" id="sname' + k + '">';
+                        tablerow += name + '</td></tr><tr><td class="LHInfo2" rowspan="2" id="sname' + k + '"" style="text-align: center;">';
                         name = tmp[tmpname][1];
                         if(name == '') name = '&nbsp;'
-                        tablerow += name + '</td><td class="LHInfo" style="text-align: end;" id="info' + k + '">';
-                        tablerow += '&nbsp;</td><td class="LHInfo" style="width: 3px; border-radius: 0px 0px 5px 0px;" rowspan="2"></td></tr><tr><td class="LHInfo" style="text-align: end;" id="time' + k + '">';
+                        tablerow += name + '</td><td class="LHInfo" id="dbi' + k + '"></td><td class="LHInfo" id="info' + k + '">';
+                        tablerow += '&nbsp;</td><td class="LHInfo" style="width: 3px; border-radius: 0px 0px 5px 0px;" rowspan="2"></td></tr><tr><td class="LHInfo" id="dst' + k + '"></td><td class="LHInfo" id="time' + k + '">';
                         tablerow += '&nbsp;</td></tr></table>';
                     }
                     $("#LoraMH2").html(tablerow);
@@ -354,12 +358,18 @@
                         if(tmp[k][10] != '') name = '&#128423; ';
                         if(tmp[k][2]  != '') name += tmp[k][2]; else name += '!' + k;
                         $("#lname" + k).html(name);
-
                         name = tmp[k][1];
                         if(name == '') name = '&nbsp;'
                         $("#sname" + k).html(name)
-                        $("#time" + k).html(ezDate(tmp[k][0]));
-                        
+                        name = ezDate(tmp[k][0]);
+                        $("#time" + k).html(name);
+                        if(name.indexOf("minutes") != -1 || name.indexOf("now") != -1) {
+                            $("#dbi" + k).html(tmp[k][11]);
+                        } else $("#dbi" + k).html("");
+                        if(mylat != '' && mylon != '' && tmp[k][9] != '') {
+                            var spot = locator2deg(tmp[k][9]);
+                            $("#dst" + k).html(calc_gc(spot[0], spot[1], mylat, mylon));
+                        }
                         $("#" + k).css({'order': tmp[k][0]});
                     }
                 }
@@ -657,6 +667,39 @@
         if (num >= 10) qthloc+=String.fromCharCode(yn[8] + 0x61) + String.fromCharCode(yn[9] + 0x61);
         return qthloc;
     }
+
+    function locator2deg(locator) {
+        if(locator.length == 6) locator += "55AA";
+        if(locator.length == 8) locator += "LL";
+
+        var i = 0;
+        var loca = new Array();
+        while (i < 10) {
+            loca[i] = locator.charCodeAt(i) - 65;
+            i++;
+        }
+        loca[2] += 17;
+        loca[3] += 17;
+        loca[6] += 17;
+        loca[7] += 17;
+        var lon = (loca[0] * 20 + loca[2] * 2 + loca[4] / 12 + loca[6] / 120 + loca[8] / 2880 - 180);
+        var lat = (loca[1] * 10 + loca[3] + loca[5] / 24 + loca[7] / 240 + loca[9] /5760 - 90);
+        return ([lat, lon]);
+    }
+
+    function calc_gc(lat1, lon1, lat2, lon2) {
+        var R = 6378.137; // Radius of the earth in km
+        var dLat = deg2rad(lat2-lat1);  // deg2rad below
+        var dLon = deg2rad(lon2-lon1);
+        var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        var d = R * c; // Distance in km
+        R = (Math.round(d * 100) / 100);
+        if(R > 0.10) return R.toString() + 'Km';
+        return '';
+    }
+
+    function deg2rad(deg) { return deg * (Math.PI/180) }
 
     new CoolClock({
         canvasId:       "localclock",

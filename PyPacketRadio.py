@@ -282,7 +282,7 @@ def logLora(nodeID, info):
     if nodeID in LoraDB:
         LoraDB[nodeID][0] = tnow # time last seen
     else:
-        LoraDB[nodeID] = [tnow, '', '', '', '', '', '', '', tnow, '', '']
+        LoraDB[nodeID] = [tnow, '', '', '', '', '', '', '', tnow, '', '', '']
 
     if info[0] == 'NODEINFO_APP':
         LoraDB[nodeID][1] = info[1] # short name
@@ -391,7 +391,7 @@ def updatesnodes():
         if nodeID in LoraDB:
             LoraDB[nodeID][0] = nodeLast
         else:
-            LoraDB[nodeID] = [nodeLast, '', '', '', '', '', '', '', nodeLast, '', '']
+            LoraDB[nodeID] = [nodeLast, '', '', '', '', '', '', '', nodeLast, '', '', '']
 
         if "user" in info:                
             LoraDB[nodeID][1] = str(info['user']['shortName'])
@@ -405,6 +405,8 @@ def updatesnodes():
             LoraDB[nodeID][9] = LatLon2qth(info['position']['latitude'],info['position']['longitude'])[:-2]
         if "viaMqtt" in info:
             LoraDB[nodeID][10] = ' via mqtt'
+        if "snr" in info and info['snr'] is not None:
+            LoraDB[nodeID][11] = str(info['snr']) + 'dB'
 
 #-------------------------------------------------------------- TNC WA8DED ---------------------------------------------------------------------------
 BEACONDELAY = int(config.get('radio', 'beacon_time'))
