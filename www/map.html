@@ -128,7 +128,7 @@
             myspot[1] = obj.lon;
             mystation = obj.station;
             map.setView([obj.lat, obj.lon],11);
-            var circle = L.circle(myspot, { color: 'red', fillColor: '#f03', fillOpacity: 0.5, radius: 250,}).addTo(map);
+            var circle = L.circle(myspot, { color: 'green', fillColor: '#f03', fillOpacity: 0.5, radius: 10,}).addTo(map);
             return;
         } else if(event.data != lasttx) {
             lasttx = event.data;
@@ -136,20 +136,22 @@
             markers.clearLayers();
             var spot;
             for(var k in obj) {
-                spot = locator2deg(obj[k]);
-                var marker;
-                if(k.substring(0,2) == 'L_') {
-                    title = k.substring(2) + '<hr class="hrin">' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]) + '<br>meshtastic';
-                    marker = L.marker(spot, {icon: orangeIcon}, { title: title });
-                } else if(k != mystation) {
-                    title = k + '<hr class="hrin">' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]) + '<br>via Radio';
-                    marker = L.marker(spot, {icon: blueIcon}, { title: title });
-                } else {
-                    title = k + '<hr class="hrin">Home Radio';
-                    marker = L.marker(spot, {icon: redIcon}, { title: title });
+                if(obj[k] != '') {
+                    spot = locator2deg(obj[k]);
+                    var marker;
+                    if(k.substring(0,2) == 'L_') {
+                        title = k.substring(2) + '<hr class="hrin">' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]) + '<br>meshtastic';
+                        marker = L.marker(spot, {icon: orangeIcon}, { title: title });
+                    } else if(k != mystation) {
+                        title = k + '<hr class="hrin">' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]) + '<br>via Radio';
+                        marker = L.marker(spot, {icon: blueIcon}, { title: title });
+                    } else {
+                        title = k + '<hr class="hrin">Home Radio';
+                        marker = L.marker(spot, {icon: redIcon}, { title: title });
+                    }
+                    marker.bindPopup(title);
+                    markers.addLayer(marker);
                 }
-                marker.bindPopup(title);
-                markers.addLayer(marker);
             }
         }
     }
