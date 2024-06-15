@@ -283,6 +283,7 @@ def logLora(nodeID, info):
         LoraDB[nodeID][0] = tnow # time last seen
     else:
         LoraDB[nodeID] = [tnow, '', '', '', '', '', '', '', tnow, '', '', '']
+        sendqueue.append([0,'[LoraNET] New lora station registered with station id !' + nodeID])
 
     if info[0] == 'NODEINFO_APP':
         LoraDB[nodeID][1] = info[1] # short name
@@ -456,6 +457,8 @@ def logheard(callsign, cmd, info):
             MHeard[callsign] = ['', '', tnow, tnow, 1, 0, 0, 0]
             if config.get('radio', 'mycall') == callsign:
                 MHeard[callsign][0] = config.get('radio', 'sysop')
+            else:
+                sendqueue.append([0,'New station registered with station call ' + callsign])
     elif cmd == 6:
         if callsign in MHeard:
             if str(info) != '':
@@ -620,14 +623,16 @@ async def go_serial():
                     await sendmsg(chan_i,'cmd2',"Error: " + data_decode)
                 elif data_int == 3:
                     # print("Link Status")
-                    print(namechan + " \33[0;37m" + data.decode()[2:] + "\33[0m")
-                    await sendmsg(chan_i,'chat',data.decode()[2:])
-
-                    if 'DISCONNECTED' in data.decode()[2:]:
-                        weareconnected = 0
-                    elif 'CONNECTED' in data.decode()[2:]:
-                        weatherbeacon = 1
-                        logheard(data.decode()[2:].split(" ")[5], 3, '')
+                    data_decode = (codecs.decode(data, 'cp850')[2:])
+                    print(namechan + " \33[0;37m" + data_decode + "\33[0m")
+                    await sendmsg(chan_i,'chat',data_decode)
+                    #if 'DISCONNECTED' in data_decode:
+                        # Channel chan_i got disconected
+                    if 'CONNECTED' in data_decode:
+                        # Channel chan_i got disconected
+                        remote_station = data_decode.split(" ")[5]
+                        logheard(remote_station, 3, '')
+                        # if incoming connection and not a C request send ./txtfiles/ctext.txt
 
                 elif data_int == 4:
                     # print("Monitor Header NoInfo")
@@ -704,6 +709,25 @@ async def go_serial():
                     _print('\33[0m', end='')
                     grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
                     await sendmsg(chan_i,'chat',grr)
+                    # deal weith incomming // commands. 
+                    donoting = False
+                    if '//' in grr:
+                        reqcmd = grr[2:3].upper()
+                        if   reqcmd == 'H':
+                            donoting = True # send ./txtfiles/help.txt
+                        elif reqcmd == 'M':
+                            donoting = True # send mHeard info...
+                        elif reqcmd == 'N':
+                            donoting = True # send ./txtfiles/news.txt
+                        elif reqcmd == 'I':
+                            donoting = True # send ./txtfiles/info.txt
+                        elif reqcmd == 'W':
+                            donoting = True # send ./txtfiles/weather.txt (weer.txt)
+                        elif reqcmd == 'Q':
+                            donoting = True # send 'Totziens maar weer!'
+                        else:
+                            donoting = True # send 'ehh what moet dat nu? // whaaa?'
+                    print(donoting)
                 else:
                     print("No data")
                     # pass
