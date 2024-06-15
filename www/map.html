@@ -28,43 +28,20 @@
   </div>
 
   <script type="text/javascript">
-    var layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
-        attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-        minZoom: 3,
-        maxZoom: 16
-    });
+    // Maps
+    var layer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',minZoom: 3,maxZoom: 17});
+    var layer2 = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',minZoom: 3,maxZoom: 17});
 
-    var layer2 = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
-        attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-        minZoom: 3,
-        maxZoom: 16
-    });
+    // Coloured Icons 
+    var blueIcon = new L.Icon({iconUrl: 'libs/images/marker-icon-blue.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]});
+    var orangeIcon = new L.Icon({iconUrl: 'libs/images/marker-icon-orange.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]});
+    var redIcon = new L.Icon({iconUrl: 'libs/images/marker-icon-red.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]});
+    var map = L.map('map_canvas', {layers: [layer, layer2],center: [52.005, 3.9877],zoom: 6});
 
-    // Was iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-    var blueIcon = new L.Icon({
-        iconUrl: 'libs/images/marker-icon-blue.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]
-    });
-    var orangeIcon = new L.Icon({
-        iconUrl: 'libs/images/marker-icon-orange.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]
-    });
-    var redIcon = new L.Icon({
-        iconUrl: 'libs/images/marker-icon-red.png', shadowUrl: 'libs/images/marker-shadow.png', iconSize: [12.5, 20.5], iconAnchor: [6, 20.5], popupAnchor: [1, -34], shadowSize: [20.5, 20.5]
-    });
-
-    var map = L.map('map_canvas', {
-        layers: [layer, layer2],
-        center: [52.005, 3.9877],
-        zoom: 6
-    });
-
-    const baseLayers = {
-        'Dark': layer2, 'Light': layer
-    };
+    const baseLayers = {'Dark': layer2, 'Light': layer};
 
     var maidenhead = L.maidenhead();
-    var overlayMaps = {
-        'QTH Locator': maidenhead
-    };
+    var overlayMaps = {'QTH Locator': maidenhead};
     const layerControl = L.control.layers(baseLayers, overlayMaps).addTo(map);
 
     var myspot = locator2deg('JO32MW49');
@@ -134,17 +111,19 @@
             return;
         } else if(event.data != lasttx) {
             lasttx = event.data;
-            console.log("new iframe data : ",event.data);
+            console.log("new map data, updating...");
             markers.clearLayers();
             var spot;
             for(var k in obj) {
                 if(obj[k] != '') {
-                    spot = locator2deg(obj[k]);
                     var marker;
                     if(k.substring(0,2) == 'L_') {
-                        title = k.substring(2) + '<hr class="hrin">' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]) + '<br>meshtastic';
-                        marker = L.marker(spot, {icon: orangeIcon}, { title: title });
+                        if(obj[k][0] != '' && obj[k][1] != '') {
+                            title = k.substring(2) + '<hr class="hrin">' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]) + '<br>meshtastic';
+                            marker = L.marker(obj[k], {icon: orangeIcon}, { title: title });
+                        }
                     } else if(k != mystation) {
+                        spot = locator2deg(obj[k]);
                         title = k + '<hr class="hrin">' + calc_gc(spot[0], spot[1], myspot[0], myspot[1]) + '<br>via Radio';
                         marker = L.marker(spot, {icon: blueIcon}, { title: title });
                     } else {

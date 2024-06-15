@@ -341,7 +341,8 @@
                     if($("#" + k).length != 0) ++index;
                     tmpname = k;
                     if(tmp[k][1] != '') tmpname = tmp[k][1];
-                    Loraobj['L_' + tmpname] = tmp[k][9];
+                    Loraobj['L_' + tmpname] = [tmp[k][3], tmp[k][4]];
+                    // Loraobj['L_' + tmpname] = tmp[k][9];
                 }
                 if(index != lenz) {
                     for(var k in tmp) {
