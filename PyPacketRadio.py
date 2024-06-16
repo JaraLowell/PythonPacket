@@ -578,31 +578,32 @@ async def go_serial():
                 await asyncio.sleep(0.016)
                 # print('IS 0000 > ' + polling_data.hex())
 
-            if polling_data.hex() == '0000ff0100' or polling_data.hex() == '':
-                # out of sync ? polled to fast or....
-                print('[ DEBUG ] Out of sync ? Polling Data : "' + polling_data.hex() + '"')
-                polling_data = b'\xff\x01\x00'
+            data_hex = polling_data.hex()
+            if data_hex[0:4] == '0000' and len(data_hex) > 4:
+                # out of sync ? 0000 + package... Lets try to repair...
+                data_hex = data_hex[4:]
+                print('[ DEBUG ] Out of sync ? Polling Data : "' + data_hex + '"')
 
-            if polling_data.hex() != 'ff0100':
-                # print("stop polling")  0000ff0100
+            if data_hex != 'ff0100':
                 polling = 0
-                if chan_i == '': chan_i = 0
-                chan_i = int(polling_data.hex()[4:6].upper(), 16) - 1
-                # these two vcases should not happen but happen... 
-                if chan_i < 0: chan_i = 0
-                if chan_i > 10 and chan_i < 255: chan_i = 0
+                chan_i = int(data_hex[4:6].upper(), 16) - 1
 
+                # these two cases should not happen but happen... 
+                if chan_i > 10 and chan_i < 255 or chan_i < 0: chan_i = 0
                 poll_byte = num2byte(chan_i)
-
                 ser.write(poll_byte + b'\x01\x00G')
                 data = ser.readline()
                 if data == '':
-                    polling = 1
                     print("We got noting, is there a TNC?")
                     break
-                # print('IS 0000 > ' + data.hex())
 
-                data_int = int(data.hex()[2:4].upper(), 16)
+                data_hex = data.hex()
+                if data_hex[0:4] == '0000' and len(data_hex) > 4:
+                    # out of sync ? 0000 + package... Lets try to repair...
+                    data_hex = data_hex[4:]
+                    data = data[2:]
+
+                data_int = int(data_hex[2:4].upper(), 16)
                 namechan = '[Monitor]'
                 if chan_i != 0:
                     namechan = '[Chan %02d]' % (chan_i,)
@@ -634,7 +635,7 @@ async def go_serial():
                         remote_station = data_decode.split(" ")[5]
                         logheard(remote_station, 3, '')
                         # if incoming connection and not a C request send ./txtfiles/ctext.txt
-
+                        
                 elif data_int == 4:
                     # print("Monitor Header NoInfo")
                     print(namechan + " \33[1;37m" + data.decode()[2:] + "\33[0m")
@@ -730,7 +731,7 @@ async def go_serial():
                             donoting = True # send 'ehh what moet dat nu? // whaaa?'
                     print(donoting)
                 else:
-                    print('[ DEBUG ] CMD Unknown ? : "' + polling_data.hex() + '"')
+                    print('[ DEBUG ] CMD Unknown ? : "' + data_hex + '"')
                     # pass
             x = x + 1
             await asyncio.sleep(0.016)
