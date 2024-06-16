@@ -366,7 +366,7 @@ def on_meshtastic_message(packet, loop=None):
             if "channel" in packet:
                 text_chns = str(packet["channel"])
             sendqueue.append([9,text_from + text_mqtt + ' on Channel ' + text_chns + '&#10;' + text_msgs])
-            sendqueue.append([0,'[LoraNET] [Ch ' + text_chns + '] ' + text_from + ': ' + text_msgs])
+            sendqueue.append([0,'[LoraNET] [Ch ' + text_chns + '] ' + text_from + text_mqtt + ': ' + text_msgs])
             donoting = False
 
         if donoting == True:
