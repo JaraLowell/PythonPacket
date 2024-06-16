@@ -580,13 +580,14 @@ async def go_serial():
 
             if polling_data.hex() == '0000ff0100' or polling_data.hex() == '':
                 # out of sync ? polled to fast or....
-                polling_data = b'\x00\x01\x00'
+                print('[ DEBUG ] Out of sync ? Polling Data : "' + polling_data.hex() + '"')
+                polling_data = b'\xff\x01\x00'
 
             if polling_data.hex() != 'ff0100':
                 # print("stop polling")  0000ff0100
                 polling = 0
                 if chan_i == '': chan_i = 0
-                chan_i = int(polling_data.hex()[4:6], 16) - 1
+                chan_i = int(polling_data.hex()[4:6].upper(), 16) - 1
                 # these two vcases should not happen but happen... 
                 if chan_i < 0: chan_i = 0
                 if chan_i > 10 and chan_i < 255: chan_i = 0
@@ -601,7 +602,7 @@ async def go_serial():
                     break
                 # print('IS 0000 > ' + data.hex())
 
-                data_int = int(data.hex()[2:4])
+                data_int = int(data.hex()[2:4].upper(), 16)
                 namechan = '[Monitor]'
                 if chan_i != 0:
                     namechan = '[Chan %02d]' % (chan_i,)
@@ -729,7 +730,7 @@ async def go_serial():
                             donoting = True # send 'ehh what moet dat nu? // whaaa?'
                     print(donoting)
                 else:
-                    print("No data")
+                    print('[ DEBUG ] CMD Unknown ? : "' + polling_data.hex() + '"')
                     # pass
             x = x + 1
             await asyncio.sleep(0.016)
