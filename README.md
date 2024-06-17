@@ -5,7 +5,12 @@ By Jaralowell and MichTronics
 
 Build in Python v3.10.10
 
-Right now it sends and recieves, can connect but has still some ways to go; The map data it grabs from the monitor if a station in it's beacon sends it's location.
+What have we done so far, the program now can communicate back and forth with the WA8DED TNC, we can sewnd, and recieve; it also now can connect to a Meshtastic
+compatible lora node and send and recieve on that as well as relay between the two. Both also show on a map so you can see where said station come from and the
+range to said stations. Plans are to also itergrade APRS but about this i am not as of yet to sure as a lot of the protocol currently in use is seriously badly
+used causing thus a high trafic load for both cb and amateur open aprs servers. Always open to ideas and sugestions and or implementation of either or the likes.
+We not trying to make a BBS server, more a iGate between devices and the net making it you can access your radio everywhere in your house by just running this
+server on somting as small as a raspberry pi four or five.
 
 It also only right now coded to work with the WA8DED protocol as some tnc's use so not KISS as if yet tough perhaps atr a stage this be a good thing to add or via
 a driver file of sorts. I'm in end just a hoby coder so am sure it not the best of the best and many other selutions be posible vs what i done. So who knows
