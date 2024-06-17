@@ -455,10 +455,13 @@ body .messages-content #message .timestamp, .timestamp {
   color: var(--TXTTIME);
 }
 body .messages-content .message.personal {
-
+  color: var(--TXTTIME);
 }
 body .messages-content .message.personal .timestamp {
-
+  color: var(--TXTTIME);
+}
+.warncolor {
+  text-shadow: 0 0 0 #ffbc77;
 }
 body .messages-content .message.typing {
   width: 30px;

@@ -724,8 +724,8 @@ async def go_serial():
                     await sendmsg(chan_i,'chat',sendtext[:-1])
                     # deal weith incomming // commands. 
                     donoting = False
-                    if '//' in grr and numlines == 1:
-                        reqcmd = grr[2:3].upper()
+                    if '//' in sendtext and numlines == 1:
+                        reqcmd = sendtext[2:3].upper()
                         if   reqcmd == 'H':
                             donoting = True # send ./txtfiles/help.txt
                         elif reqcmd == 'M':
