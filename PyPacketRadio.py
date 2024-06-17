@@ -56,6 +56,8 @@ callsign = ""
 polling = 1
 channel_to_read_byte = b'x00'
 
+pdelay = 0.0016
+
 if os.path.exists(LoraDBPath):
     with open(LoraDBPath, 'rb') as f:
         LoraDB = pickle.load(f)
@@ -108,21 +110,23 @@ async def register(websocket):
     global tlast
     print("[Network]\33[32m New WebSocket connection from", str(websocket.remote_address)[1:-1].replace('\'','').replace(', ',':') + "\33[0m")
     USERS.add(websocket)
+    await asyncio.sleep(0.22)
     ser.write(b'\x00\x01\x00\x4D')
     tmp = ser.readline()[2:-1].decode()
     await sendmsg(0,'cmd1','M:' + tmp)
-    await asyncio.sleep(0.016)
+    await asyncio.sleep(0.0016)
     ser.write(b'\x00\x01\x00\x49')
     tmp = ser.readline()[2:-1].decode()
     await sendmsg(0,'cmd1','I:' + tmp)
-    await asyncio.sleep(0.075)
+    await asyncio.sleep(0.0016)
     if monitorbuffer:
         for lines in monitorbuffer:
             await websocket.send(json.dumps(lines[0])) # .replace("\\r", "n"))
-    await asyncio.sleep(0.025)
+    await asyncio.sleep(0.1)
     if channelbuffers:
         for lines in channelbuffers:
             await websocket.send(json.dumps(lines[0])) # .replace("\\r", "n"))
+    await asyncio.sleep(0.1)
     await websocket.send('{"cmd":"bulkdone"}')
     await websocket.send('{"cmd":"homepoint","station":"' + config.get('radio', 'mycall') + '","lat":"' + str(config.get('radio', 'latitude')) + '","lon":"' + str(config.get('radio', 'longitude')) + '"}')
 
@@ -296,6 +300,10 @@ def logLora(nodeID, info):
         LoraDB[nodeID][5] = info[3] # altitude
         LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])
 
+
+
+
+
 # import yaml
 def on_meshtastic_message(packet, loop=None):
     # print(yaml.dump(meshtastic_client.nodes))
@@ -448,7 +456,6 @@ def logheard(callsign, cmd, info):
 
     # 'callsign' = ['name','jo locator if known',first heard,last heard,heard count,first connect, last connect, connect count];
     #                  0              1              2           3           4           5             6             7
-
     if cmd == 5:
         if callsign in MHeard:
             MHeard[callsign][3] = tnow
@@ -461,7 +468,7 @@ def logheard(callsign, cmd, info):
                 sendqueue.append([0,'New station registered with station call ' + callsign])
     elif cmd == 6:
         if callsign in MHeard:
-            if str(info) != '':
+            if len(info) >= len(MHeard[callsign][1]) and str(info) != '':
                 MHeard[callsign][1] = str(info)
         else:
             MHeard[callsign] = ['', str(info), tnow, tnow, 1, 0, 0, 0]
@@ -569,13 +576,15 @@ async def go_serial():
     global ACTIVECHAN
     global tlast
     polling = 1
+    queing = 0
+    sendbuffs = 0
     x = 0
     while True:
         for x in range(int(channels[2:])):
             if polling == 1:
                 ser.write(b'\xff\x01\x00G')
                 polling_data = ser.readline()
-                await asyncio.sleep(0.016)
+                await asyncio.sleep(pdelay)
                 # print('IS 0000 > ' + polling_data.hex())
 
             data_hex = polling_data.hex()
@@ -744,38 +753,48 @@ async def go_serial():
                 else:
                     print('[ DEBUG ]\33[0;33m Stage Get CMD Unknown : "' + data_hex + '"')
                     # pass
-            x = x + 1
-            await asyncio.sleep(0.016)
+
+                await asyncio.sleep(pdelay)
+            x += 1
         else:
-            x = 0;
-            # polling = 1
-            chan_i = int(ACTIVECHAN.hex(), 16)
-            ser.write(ACTIVECHAN + b'\x01\x01\x40\x42')
-            tmp = ser.readline()[2:-1].decode()
-            await sendmsg(chan_i,'cmd1','@B:' + tmp)
-            await asyncio.sleep(0.016)
-            ser.write(ACTIVECHAN + b'\x01\x00\x4C')
-            tmp = ser.readline()[2:-1].decode()
-            await sendmsg(chan_i,'cmd1','L:' + tmp)
-            tmp = int(psutil.Process(os.getpid()).memory_info().rss)
-            await sendmsg(chan_i,'cmd1','@MEM:' + str(tmp))
-            # Lets check if we have a queue to send and if so, send it
-            if len(sendqueue) > 0:
-                await asyncio.sleep(0.016)
-                todo = (sendqueue[0])
-                sendqueue.pop(0)
-                if todo[0] == 9 or todo[0] == 10:
-                    await sendmsg(todo[0],'cmd4',todo[1])
-                else:
-                    beacon = send_tnc(todo[1] + '\r', todo[0])
-                    ser.write(beacon)
-                    ser.readline()
+            x = 0
+            queing += 1
+            if queing == 1:
+                chan_i = int(ACTIVECHAN.hex(), 16)
+                ser.write(ACTIVECHAN + b'\x01\x01\x40\x42')
+                tmp = ser.readline()[2:-1].decode()
+                await sendmsg(chan_i,'cmd1','@B:' + tmp)
+                await asyncio.sleep(pdelay)
+            elif queing == 2:
+                ser.write(ACTIVECHAN + b'\x01\x00\x4C')
+                tmp = ser.readline()[2:-1].decode()
+                await sendmsg(chan_i,'cmd1','L:' + tmp)
+                tmp = int(psutil.Process(os.getpid()).memory_info().rss)
+                await sendmsg(chan_i,'cmd1','@MEM:' + str(tmp))
+                await asyncio.sleep(pdelay)
+            elif queing == 3:
+                # Lets check if we have a queue to send and if so, send it
+                if len(sendqueue) > 0:
+                    todo = (sendqueue[0])
+                    sendqueue.pop(0)
+                    if todo[0] == 9 or todo[0] == 10:
+                        await sendmsg(todo[0],'cmd4',todo[1])
+                    else:
+                        beacon = send_tnc(todo[1] + '\r', todo[0])
+                        ser.write(beacon)
+                        ser.readline()
+                        await asyncio.sleep(pdelay)
+                queing = 0
             # And because we need to, send the mheard ever 15 full sec?
             tnow = int(time.time())
-            if tnow > tlast + 15:
+            if tnow > tlast + 6:
                 tlast = tnow
-                await sendmsg(100,'cmd100',json.dumps(MHeard).replace('\"','\\\"'))
-                await sendmsg(100,'loraHeard',json.dumps(LoraDB).replace('\"','\\\"'))
+                sendbuffs += 1
+                if sendbuffs == 1:
+                    await sendmsg(100,'cmd100',json.dumps(MHeard).replace('\"','\\\"'))
+                else:
+                    await sendmsg(100,'loraHeard',json.dumps(LoraDB).replace('\"','\\\"'))
+                    sendbuffs = 0
 
 #-------------------------------------------------------------- Side Functions ---------------------------------------------------------------------------
 
