@@ -380,7 +380,7 @@ def on_meshtastic_message(packet, loop=None):
         if donoting == False and text_raws != '' and lora_lastmsg != text_raws:
             lora_lastmsg = text_raws
             print("[LoraNet]\33[0;37m mqtt " + text_from + LoraDB[fromraw][10] + "\33[0m")
-            _print('\33[0;32m                     ' + text_raws + '\33[0m')
+            _print('\33[0;32m' + (' ' * 21) + text_raws + '\33[0m')
 
 def updatesnodes():
     info = ''
@@ -580,9 +580,8 @@ async def go_serial():
 
             data_hex = polling_data.hex()
             if data_hex[0:4] == '0000' and len(data_hex) > 4:
-                # out of sync ? 0000 + package... Lets try to repair...
                 data_hex = data_hex[4:]
-                print('[ DEBUG ] Out of sync ? Polling Data : "' + data_hex + '"')
+                print('[ DEBUG ]\33[0;33m Stage Poll 0000 + "' + data_hex + '"')
 
             if data_hex != 'ff0100':
                 polling = 0
@@ -594,12 +593,12 @@ async def go_serial():
                 ser.write(poll_byte + b'\x01\x00G')
                 data = ser.readline()
                 if data == '':
-                    print("We got noting, is there a TNC?")
+                    print("[ DEBUG ]\33[0;31m We got noting, is there a TNC?")
                     break
 
                 data_hex = data.hex()
                 if data_hex[0:4] == '0000' and len(data_hex) > 4:
-                    # out of sync ? 0000 + package... Lets try to repair...
+                    print('[ DEBUG ]\33[0;33m Stage Get 0000 + "' + data_hex + '"')
                     data_hex = data_hex[4:]
                     data = data[2:]
 
@@ -615,13 +614,11 @@ async def go_serial():
                     # print("Succes with Messages")
                     data_decode = (codecs.decode(data, 'cp850')[1:])
                     print(namechan + " [1] \33[1;32m" + data_decode + "\33[0m")
-                    print("[ DEBUG ] " + data.hex())
                     await sendmsg(chan_i,'cmd1',"OK: " + data_decode)
                 elif data_int == 2:
                     # print("Failure with Messages")
                     data_decode = (codecs.decode(data, 'cp850')[2:])
                     print(namechan + " [2] \33[1;31m" + data_decode + "\33[0m")
-                    print("[ DEBUG ] " + data.hex())
                     await sendmsg(chan_i,'cmd2',"Error: " + data_decode)
                 elif data_int == 3:
                     # print("Link Status")
@@ -664,7 +661,7 @@ async def go_serial():
                     sendtext = ''
                     _print('\33[1;36m', end='')
                     for lines in data_out:
-                        _print('                     ' + lines)
+                        _print((' ' * 21) + lines)
                         sendtext += lines + '\r'
                     _print('\33[0m', end='')
 
@@ -706,7 +703,7 @@ async def go_serial():
                     _print('\33[1;30m', end='')
                     sendtext = ''
                     for lines in data_out:
-                        _print('                     ' + lines)
+                        _print((' ' * 21) + lines)
                         sendtext += lines + '\r'
                     _print('\33[0m', end='')
                     grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
@@ -731,7 +728,7 @@ async def go_serial():
                             donoting = True # send 'ehh what moet dat nu? // whaaa?'
                     print(donoting)
                 else:
-                    print('[ DEBUG ] CMD Unknown ? : "' + data_hex + '"')
+                    print('[ DEBUG ]\33[0;33m Stage Get CMD Unknown : "' + data_hex + '"')
                     # pass
             x = x + 1
             await asyncio.sleep(0.016)
