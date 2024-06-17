@@ -304,16 +304,16 @@
                 List of active and inactive channels
             */
             var chnz = JSON.parse(tmp.data);
-            if(chnz[1].length) {
+            if(chnz[1][1].length) {
                 var active;
-                if(chnz[1]== 'CHANNEL NOT CONNECTED') $("#ch1").html("1 : · · · · · ·").css({ "color": '#000'});  else { $("#ch1").html('1 : ' + chnz[1]).css({ "color": '#99ffb8'}); active = 1; }
-                if(chnz[2]== 'CHANNEL NOT CONNECTED') $("#ch2").html("2 : · · · · · ·").css({ "color": '#000'});  else { $("#ch2").html('2 : ' + chnz[2]).css({ "color": '#99ffb8'}); active = 1; }
-                if(chnz[3]== 'CHANNEL NOT CONNECTED') $("#ch3").html("3 : · · · · · ·").css({ "color": '#000'});  else { $("#ch3").html('3 : ' + chnz[3]).css({ "color": '#99ffb8'}); active = 1; }
-                if(chnz[4]== 'CHANNEL NOT CONNECTED') $("#ch4").html("4 : · · · · · ·").css({ "color": '#000'});  else { $("#ch4").html('4 : ' + chnz[4]).css({ "color": '#99ffb8'}); active = 1; }
-                if(chnz[5]== 'CHANNEL NOT CONNECTED') $("#ch5").html("5 : · · · · · ·").css({ "color": '#000'});  else { $("#ch5").html('5 : ' + chnz[5]).css({ "color": '#99ffb8'}); active = 1; }
-                if(chnz[6]== 'CHANNEL NOT CONNECTED') $("#ch6").html("6 : · · · · · ·").css({ "color": '#000'});  else { $("#ch6").html('6 : ' + chnz[6]).css({ "color": '#99ffb8'}); active = 1; }
-                if(chnz[7]== 'CHANNEL NOT CONNECTED') $("#ch7").html("7 : · · · · · ·").css({ "color": '#000'});  else { $("#ch7").html('7 : ' + chnz[7]).css({ "color": '#99ffb8'}); active = 1; }
-                if(chnz[8]== 'CHANNEL NOT CONNECTED') $("#ch8").html("8 : · · · · · ·").css({ "color": '#000'});  else { $("#ch8").html('8 : ' + chnz[8]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[1][1]== 'CHANNEL NOT CONNECTED') $("#ch1").html("1 : · · · · · ·").css({ "color": '#000'});  else { $("#ch1").html('1 : ' + chnz[1]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[2][1]== 'CHANNEL NOT CONNECTED') $("#ch2").html("2 : · · · · · ·").css({ "color": '#000'});  else { $("#ch2").html('2 : ' + chnz[2]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[3][1]== 'CHANNEL NOT CONNECTED') $("#ch3").html("3 : · · · · · ·").css({ "color": '#000'});  else { $("#ch3").html('3 : ' + chnz[3]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[4][1]== 'CHANNEL NOT CONNECTED') $("#ch4").html("4 : · · · · · ·").css({ "color": '#000'});  else { $("#ch4").html('4 : ' + chnz[4]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[5][1]== 'CHANNEL NOT CONNECTED') $("#ch5").html("5 : · · · · · ·").css({ "color": '#000'});  else { $("#ch5").html('5 : ' + chnz[5]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[6][1]== 'CHANNEL NOT CONNECTED') $("#ch6").html("6 : · · · · · ·").css({ "color": '#000'});  else { $("#ch6").html('6 : ' + chnz[6]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[7][1]== 'CHANNEL NOT CONNECTED') $("#ch7").html("7 : · · · · · ·").css({ "color": '#000'});  else { $("#ch7").html('7 : ' + chnz[7]).css({ "color": '#99ffb8'}); active = 1; }
+                if(chnz[8][1]== 'CHANNEL NOT CONNECTED') $("#ch8").html("8 : · · · · · ·").css({ "color": '#000'});  else { $("#ch8").html('8 : ' + chnz[8]).css({ "color": '#99ffb8'}); active = 1; }
                 // if(chnz[9]== 'CHANNEL NOT CONNECTED') $("#ch9").html("9 : · · · · · ·").css({ "color": '#000'});  else { $("#ch9").html('9 : ' + chnz[9]).css({ "color": '#99ffb8'}); active = 1; }
                 // if(chnz[10]=='CHANNEL NOT CONNECTED') $("#ch10").html("10 : · · · · · ·").css({ "color": '#000'}); else { $("#ch10").html('10 : ' + chnz[10]).css({ "color": '#99ffb8'}); active = 1; }
                 if(active) {

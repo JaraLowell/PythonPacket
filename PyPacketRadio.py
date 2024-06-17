@@ -118,11 +118,11 @@ async def register(websocket):
     await asyncio.sleep(0.075)
     if monitorbuffer:
         for lines in monitorbuffer:
-            await websocket.send(json.dumps(lines[0]))
+            await websocket.send(json.dumps(lines[0])) # .replace("\\r", "n"))
     await asyncio.sleep(0.025)
     if channelbuffers:
         for lines in channelbuffers:
-            await websocket.send(json.dumps(lines[0]))
+            await websocket.send(json.dumps(lines[0])) # .replace("\\r", "n"))
     await websocket.send('{"cmd":"bulkdone"}')
     await websocket.send('{"cmd":"homepoint","station":"' + config.get('radio', 'mycall') + '","lat":"' + str(config.get('radio', 'latitude')) + '","lon":"' + str(config.get('radio', 'longitude')) + '"}')
 
@@ -160,7 +160,7 @@ async def mysocket(websocket, path):
                         # macybe send connected to name ?
                         ser.write(ACTIVECHAN + b'\x01\x00\x43')
                         # await sendmsg(int(message[1:]),'cmd3','C:' + tmp)
-                        ACTCHANNELS[tmp2] = ser.readline()[2:-1].decode()
+                        ACTCHANNELS[tmp2][1] = ser.readline()[2:-1].decode()
                         await sendmsg(tmp2,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
             else:
                 print("[Network] " + message + "\33[0m")
@@ -183,7 +183,7 @@ async def sendmsg(chan, cmd, message):
     if USERS:
         try:
             for user in USERS:
-                await user.send('{"time":' + str(timenow) + ',"chan":' + str(chan) + ',"cmd":"' + cmd + '","data":"' + message + '"}')
+                await user.send('{"time":' + str(timenow) + ',"chan":' + str(chan) + ',"cmd":"' + cmd + '","data":"' + message + '"}') # might need a replace \r for \n as well; needs see...
         except Exception as e:
             print("[Network] \33[1;31m" + repr(e))
 
@@ -416,8 +416,8 @@ def updatesnodes():
 BEACONDELAY = int(config.get('radio', 'beacon_time'))
 BEACONTEXT = config.get('radio', 'beacon_text')
 ACTIVECHAN = num2byte(0)
-ACTCHANNELS = {0: 'CQ'}
-
+ACTCHANNELS = {0: ['CQ','',0]}
+#             Chn:[My call, Remote call, in/out]
 sendqueue = []
 channels = config.get('tncinit', '3')
 callsign = ""
@@ -520,7 +520,7 @@ def init_tncConfig():
     x = 0
     for x in range(1, 18):
         if x == 2:
-            ACTCHANNELS[0] = config.get('tncinit', '2')[2:]
+            ACTCHANNELS[0] = [config.get('tncinit', '2')[2:], '', 0]
         if x == 3:
             all_bytes = send_init_tnc(config.get('tncinit', str(x)),0,1)
             ser.write(all_bytes)
@@ -540,7 +540,7 @@ def init_tncConfig():
                 ser.write(incremented_hex_value + b'\x01\x00\x43')
                 tmp = (ser.readline())[2:-1].decode()
                 print('[Chan %02d' % (chan_i,) + '] ' + callsign_str + ' > ' + tmp)
-                ACTCHANNELS[x] = tmp
+                ACTCHANNELS[chan_i] = [callsign_str[2:],tmp,0]
         elif x == 6:
             # Set date for K
             date_string = today_date.strftime("%m/%d/%y")
@@ -625,14 +625,26 @@ async def go_serial():
                     data_decode = (codecs.decode(data, 'cp850')[2:])
                     print(namechan + " \33[0;37m" + data_decode + "\33[0m")
                     await sendmsg(chan_i,'chat',data_decode)
-                    #if 'DISCONNECTED' in data_decode:
+                    if 'DISCONNECTED' in data_decode:
                         # Channel chan_i got disconected
+                        ACTCHANNELS[chan_i][1] = 'CHANNEL NOT CONNECTED'
+                        ACTCHANNELS[chan_i][2] = 0
                     if 'CONNECTED' in data_decode:
                         # Channel chan_i got disconected
                         remote_station = data_decode.split(" ")[5]
                         logheard(remote_station, 3, '')
-                        # if incoming connection and not a C request send ./txtfiles/ctext.txt
-                        
+                        if ACTCHANNELS[chan_i][1] != remote_station:
+                            ACTCHANNELS[chan_i][1] = remote_station
+                            ACTCHANNELS[chan_i][2] = 2
+                            ctext_file = 'ctext-' + remote_station + '.txt'
+                            if os.path.isfile(os.getcwd() + os.path.sep + 'textfiles' + os.path.sep + ctext_file):
+                                # We got a personal ctext send it...
+                                print('[ DEBUG ] Ready to send ' + ctext_file)
+                            elif os.path.isfile(os.getcwd() + os.path.sep + 'textfiles' + os.path.sep + 'ctext.txt'):
+                                # Send default ctext.txt
+                                print('[ DEBUG ] Ready to send ctext.txt')
+                            else:
+                                print('[ DEBUG ] No ctext.txt file in txtfiles folder!')
                 elif data_int == 4:
                     # print("Monitor Header NoInfo")
                     print(namechan + " \33[1;37m" + data.decode()[2:] + "\33[0m")
@@ -665,8 +677,8 @@ async def go_serial():
                         sendtext += lines + '\r'
                     _print('\33[0m', end='')
 
-                    grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
-                    await sendmsg(chan_i,'warn',grr)
+                    # grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+                    await sendmsg(chan_i,'warn',sendtext[:-1])
 
                     locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}[0-9]{2}', data_decode.upper())
                     if not locator:
@@ -700,17 +712,19 @@ async def go_serial():
                     # This should not be on monitor
                     data_decode = (codecs.decode(data, 'cp850')[3:])
                     data_out = data_decode.splitlines()
+                    numlines = 0
                     _print('\33[1;30m', end='')
                     sendtext = ''
                     for lines in data_out:
                         _print((' ' * 21) + lines)
                         sendtext += lines + '\r'
+                        numlines += 1
                     _print('\33[0m', end='')
-                    grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
-                    await sendmsg(chan_i,'chat',grr)
+                    # grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+                    await sendmsg(chan_i,'chat',sendtext[:-1])
                     # deal weith incomming // commands. 
                     donoting = False
-                    if '//' in grr:
+                    if '//' in grr and numlines == 1:
                         reqcmd = grr[2:3].upper()
                         if   reqcmd == 'H':
                             donoting = True # send ./txtfiles/help.txt
