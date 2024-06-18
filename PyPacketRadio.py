@@ -45,6 +45,10 @@ LoraDBPath = 'LoraDB.pkl'
 MoniLogPath = 'MoniLog.pk1'
 ChanLogPath = 'ChanLog.pk1'
 
+MyCall = config.get('radio', 'mycall')
+SendLengt = 127
+MyPath = os.getcwd() + os.path.sep + 'textfiles' + os.path.sep
+
 monitorbuffer = []
 channelbuffers = []
 
@@ -128,7 +132,7 @@ async def register(websocket):
             await websocket.send(json.dumps(lines[0])) # .replace("\\r", "n"))
     await asyncio.sleep(0.1)
     await websocket.send('{"cmd":"bulkdone"}')
-    await websocket.send('{"cmd":"homepoint","station":"' + config.get('radio', 'mycall') + '","lat":"' + str(config.get('radio', 'latitude')) + '","lon":"' + str(config.get('radio', 'longitude')) + '"}')
+    await websocket.send('{"cmd":"homepoint","station":"' + MyCall + '","lat":"' + str(config.get('radio', 'latitude')) + '","lon":"' + str(config.get('radio', 'longitude')) + '"}')
 
 async def unregister(websocket):
     global USERS
@@ -288,7 +292,6 @@ def logLora(nodeID, info):
     else:
         LoraDB[nodeID] = [tnow, '', '', '', '', '', '', '', tnow, '', '', '']
         sendqueue.append([0,'[LoraNET] New lora station registered with station id !' + nodeID])
-
     if info[0] == 'NODEINFO_APP':
         LoraDB[nodeID][1] = info[1] # short name
         LoraDB[nodeID][2] = info[2] # long name
@@ -299,10 +302,6 @@ def logLora(nodeID, info):
         LoraDB[nodeID][4] = info[2] # longitude
         LoraDB[nodeID][5] = info[3] # altitude
         LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])
-
-
-
-
 
 # import yaml
 def on_meshtastic_message(packet, loop=None):
@@ -462,7 +461,7 @@ def logheard(callsign, cmd, info):
             MHeard[callsign][4] += 1
         else:
             MHeard[callsign] = ['', '', tnow, tnow, 1, 0, 0, 0]
-            if config.get('radio', 'mycall') == callsign:
+            if MyCall == callsign:
                 MHeard[callsign][0] = config.get('radio', 'sysop')
             else:
                 sendqueue.append([0,'New station registered with station call ' + callsign])
@@ -533,7 +532,7 @@ def init_tncConfig():
             ser.write(all_bytes)
             ser.readline()
             # Set Callsign I for every channel Y
-            callsign_str = 'I ' + config.get('radio', 'mycall')
+            callsign_str = 'I ' + MyCall
             callsign_len = len(callsign_str)
             callsign_len_hex = '0' + str(callsign_len -1)
             callsign_len_byte = bytearray.fromhex(callsign_len_hex)
@@ -562,7 +561,7 @@ def init_tncConfig():
             ser.readline()
         else:
             if x == 17:
-                all_bytes = send_init_tnc('I ' + config.get('radio', 'mycall'),0,1)
+                all_bytes = send_init_tnc('I ' + MyCall,0,1)
             else:
                 all_bytes = send_init_tnc(config.get('tncinit', str(x)),0,1)
             ser.write(all_bytes)
@@ -646,12 +645,12 @@ async def go_serial():
                             ACTCHANNELS[chan_i][1] = remote_station
                             ACTCHANNELS[chan_i][2] = 2
                             ctext_file = 'ctext-' + remote_station + '.txt'
-                            if os.path.isfile(os.getcwd() + os.path.sep + 'textfiles' + os.path.sep + ctext_file):
+                            if os.path.isfile(MyPath + ctext_file):
                                 # We got a personal ctext send it...
-                                print('[ DEBUG ] Ready to send ' + ctext_file)
-                            elif os.path.isfile(os.getcwd() + os.path.sep + 'textfiles' + os.path.sep + 'ctext.txt'):
+                                textchunk(readfile(ctext_file),chan_i,remote_station)
+                            elif os.path.isfile(MyPath + 'ctext.txt'):
                                 # Send default ctext.txt
-                                print('[ DEBUG ] Ready to send ctext.txt')
+                                textchunk(readfile('ctext.txt'),chan_i,remote_station)
                             else:
                                 print('[ DEBUG ] No ctext.txt file in txtfiles folder!')
                 elif data_int == 4:
@@ -875,47 +874,62 @@ async def cleaner():
 
 import random
 
+def readfile(file):
+    filetoread = MyPath + file
+    contents = ''
+    if os.path.isfile(filetoread):
+        with open(filetoread, 'r') as f:
+            contents = f.read()
+        if contents != '':
+            return contents
+    return 'File `' + file + '` not found or empty.'
+
 def textchunk(cnktext , chn, callsign):
     tmp = ''
     # Lets do some preg replacing to...
     sindex = cnktext.find('%')
     if sindex:
         cnktext = cnktext.replace('%V', 'PyPacketRadio v1.1')                               # GP version number, in this case it is 1.61
-        cnktext = cnktext.replace('%C', callsign)                                           # %c = The Call of the opposite Station
+        cnktext = cnktext.replace('%c', callsign)                                           # %c = The Call of the opposite Station
         if callsign in MHeard:
-            cnktext = cnktext.replace('%N', MHeard[callsign][0] + ' ()' + callsign + ')')   # The Name of the opposite Station
+            if MHeard[callsign][0] != '':
+                cnktext = cnktext.replace('%n', MHeard[callsign][0] + ' ()' + callsign + ')')   # The Name of the opposite Station
+            else:
+                cnktext = cnktext.replace('%n', callsign)
+                tmp = 'Please register your name via //Name yourname'
         else:
-            cnktext = cnktext.replace('%N', callsign)
-            tmp = 'Please register your name via //Name yourname'
+            cnktext = cnktext.replace('%n', callsign)
         cnktext = cnktext.replace('%?', tmp)                                                # prompts the connected station to report its name if it has not yet included in the list of names (NAMES.GP)
-        cnktext = cnktext.replace('%Y', config.get('radio', 'mycall'))                      # %y = One's own Call
-        cnktext = cnktext.replace('%K', str(chn))                                           # %k = channel number on which the text will be broadcast
-        cnktext = cnktext.replace('%T', time.strftime('%H:%M:%S'))                          # %t = T: current GP time in HH:MM:SS format, e.g. 10:41:32
-        cnktext = cnktext.replace('%D', time.strftime("%d/%m/%Y"))                          # %d = current date eg: 25.03.1991
+        cnktext = cnktext.replace('%y', MyCall)                                             # %y = One's own Call
+        cnktext = cnktext.replace('%k', str(chn))                                           # %k = channel number on which the text will be broadcast
+        cnktext = cnktext.replace('%t', time.strftime('%H:%M:%S'))                          # %t = T: current GP time in HH:MM:SS format, e.g. 10:41:32
+        cnktext = cnktext.replace('%d', time.strftime("%d/%m/%Y"))                          # %d = current date eg: 25.03.1991
         # cnktext = cnktext.replace('%B', )                                                 # %b = Corresponds to the Bell Character (07h) we dont have this ?!
         tmp = ''
         if os.path.exists('txtfiles/news.txt'): tmp = 'There is news via //News'
-        cnktext = cnktext.replace('%I', tmp)                                                # %i = is there new news? News
-        cnktext = cnktext.replace('%Z', datetime.datetime.now().astimezone().strftime("%z"))# %z = The Time Zone of the server
+        cnktext = cnktext.replace('%i', tmp)                                                # %i = is there new news? News
+        cnktext = cnktext.replace('%z', datetime.now().astimezone().strftime("%z"))         # %z = The Time Zone of the server
         cnktext = cnktext.replace('%_', '\r')                                               # %_: ends the line and moves the cursor to a new line
-        cnktext = cnktext.replace('%>', 'to ' + config.get('radio', 'mycall') + ' >')       # bit like a command prompt place holder at bottom of msg
+        cnktext = cnktext.replace('%>', 'to ' + MyCall + ' >')                              # bit like a command prompt place holder at bottom of msg
         sindex = cnktext.find('%O')
         if sindex:
-            if os.path.exists('txtfiles/origin.txt'):
-                lines = open('origin.txt').read().splitlines()
-                myline = random.choice(lines)
-                cnktext = cnktext.replace('%O', myline)                                     # %o = Reads a Line from ORIGIN.GPI (Chosen at Random)
+            lines = readfile('origin.txt').splitlines()
+            myline = random.choice(lines)
+            cnktext = cnktext.replace('%O', myline)                                         # %o = Reads a Line from ORIGIN.GPI (Chosen at Random)
         # cnktext = cnktext.replace('%%', '%')                                              # percent sign
 
-    cnktext = re.sub(r'(\r\n|\n|\r)', '\n', cnktext)                                        # lets make sure we only use \r as enter
+    cnktext = re.sub(r'(\r\n|\n|\r)', '\n', cnktext)                                        # lets make sure we only use \n as enter
+    cnktext = cnktext[:-1]
 
     # Next part we need is tring to parts if string longer then 7f (127) bytes (characters)
-    while len(cnktext) > 127:
-        tmp = cnktext[0:127]
-        cnktext = cnktext[128:]
+    while len(cnktext) > SendLengt:
+        tmp = cnktext[0:SendLengt]
+        cnktext = cnktext[SendLengt:]
+        print('*' * 80)
         sendqueue.append([chn,cnktext])
     #do we have left over?
-    if len(cnktext):
+    if len(cnktext) != 0:
+        print('*' * 80)
         sendqueue.append([chn,cnktext])
 
 #---------------------------------------------------------------- Start Mains -----------------------------------------------------------------------------
