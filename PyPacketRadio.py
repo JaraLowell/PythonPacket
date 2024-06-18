@@ -580,7 +580,7 @@ async def go_serial():
     sendbuffs = 0
     x = 0
     while True:
-        for x in range(int(channels[2:])):
+        for x in range(6):
             if polling == 1:
                 ser.write(b'\xff\x01\x00G')
                 polling_data = ser.readline()
