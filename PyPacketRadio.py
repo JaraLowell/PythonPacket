@@ -427,7 +427,6 @@ ACTCHANNELS = {0: ['CQ','',0]}
 #             Chn:[My call, Remote call, in/out]
 sendqueue = []
 channels = config.get('tncinit', '3')
-callsign = ""
 polling = 1
 channel_to_read_byte = b'x00'
 tlast = 0
@@ -445,41 +444,41 @@ ser.rtscts = False                  # disable hardware (RTS/CTS) flow control
 ser.dsrdtr = False                  # disable hardware (DSR/DTR) flow control
 ser.writeTimeout = 2                # timeout for write
 
-def logheard(callsign, cmd, info):
+def logheard(call, cmd, info):
     tnow = int(time.time())
 
     # Remove the -Channel if present
-    sindex = callsign.find('-')
+    sindex = call.find('-')
     if sindex > 1:
-        callsign = callsign[:sindex]
+        call = call[:sindex]
 
     # 'callsign' = ['name','jo locator if known',first heard,last heard,heard count,first connect, last connect, connect count];
     #                  0              1              2           3           4           5             6             7
     if cmd == 5:
-        if callsign in MHeard:
-            MHeard[callsign][3] = tnow
-            MHeard[callsign][4] += 1
+        if call in MHeard:
+            MHeard[call][3] = tnow
+            MHeard[call][4] += 1
         else:
-            MHeard[callsign] = ['', '', tnow, tnow, 1, 0, 0, 0]
-            if MyCall == callsign:
-                MHeard[callsign][0] = config.get('radio', 'sysop')
+            MHeard[call] = ['', '', tnow, tnow, 1, 0, 0, 0]
+            if MyCall == call:
+                MHeard[call][0] = config.get('radio', 'sysop')
             else:
-                sendqueue.append([0,'New station registered with station call ' + callsign])
+                sendqueue.append([0,'New station registered with station call ' + call])
     elif cmd == 6:
-        if callsign in MHeard:
-            if len(info) >= len(MHeard[callsign][1]) and str(info) != '':
-                MHeard[callsign][1] = str(info)
+        if call in MHeard:
+            if len(info) >= len(MHeard[call][1]) and str(info) != '':
+                MHeard[call][1] = str(info)
         else:
-            MHeard[callsign] = ['', str(info), tnow, tnow, 1, 0, 0, 0]
-        MHeard[callsign][4] += 1
-        MHeard[callsign][3] = tnow
+            MHeard[call] = ['', str(info), tnow, tnow, 1, 0, 0, 0]
+        MHeard[call][4] += 1
+        MHeard[call][3] = tnow
     elif cmd == 3:
-        if callsign in MHeard:
-            MHeard[callsign][6] = tnow
-            MHeard[callsign][4] += 1
-            MHeard[callsign][7] += 1
-            if MHeard[callsign][5] == 0:
-                MHeard[callsign][5] = tnow
+        if call in MHeard:
+            MHeard[call][6] = tnow
+            MHeard[call][4] += 1
+            MHeard[call][7] += 1
+            if MHeard[call][5] == 0:
+                MHeard[call][5] = tnow
 
 # Set TNC in WA8DED Hostmode
 def init_tncinWa8ded():
@@ -884,21 +883,21 @@ def readfile(file):
             return contents
     return 'File `' + file + '` not found or empty.'
 
-def textchunk(cnktext , chn, callsign):
+def textchunk(cnktext , chn, call):
     tmp = ''
     # Lets do some preg replacing to...
     sindex = cnktext.find('%')
     if sindex:
         cnktext = cnktext.replace('%V', 'PyPacketRadio v1.1')                               # GP version number, in this case it is 1.61
-        cnktext = cnktext.replace('%c', callsign)                                           # %c = The Call of the opposite Station
-        if callsign in MHeard:
-            if MHeard[callsign][0] != '':
-                cnktext = cnktext.replace('%n', MHeard[callsign][0] + ' ()' + callsign + ')')   # The Name of the opposite Station
+        cnktext = cnktext.replace('%c', call)                                           # %c = The Call of the opposite Station
+        if call in MHeard:
+            if MHeard[call][0] != '':
+                cnktext = cnktext.replace('%n', MHeard[call][0] + ' ()' + call + ')')   # The Name of the opposite Station
             else:
-                cnktext = cnktext.replace('%n', callsign)
+                cnktext = cnktext.replace('%n', call)
                 tmp = 'Please register your name via //Name yourname'
         else:
-            cnktext = cnktext.replace('%n', callsign)
+            cnktext = cnktext.replace('%n', call)
         cnktext = cnktext.replace('%?', tmp)                                                # prompts the connected station to report its name if it has not yet included in the list of names (NAMES.GP)
         cnktext = cnktext.replace('%y', MyCall)                                             # %y = One's own Call
         cnktext = cnktext.replace('%k', str(chn))                                           # %k = channel number on which the text will be broadcast
