@@ -731,23 +731,31 @@ async def go_serial():
                     await sendmsg(chan_i,'chat',sendtext[:-1])
                     # deal weith incomming // commands. 
                     donoting = False
-                    if '//' in sendtext and numlines == 1:
+                    if '//' in sendtext and numlines == 1 and ACTCHANNELS[chan_i][1] != 'CHANNEL NOT CONNECTED':
                         reqcmd = sendtext[2:3].upper()
                         if   reqcmd == 'H':
                             donoting = True # send ./txtfiles/help.txt
+                            textchunk(readfile('help.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         elif reqcmd == 'M':
                             donoting = True # send mHeard info...
                         elif reqcmd == 'N':
                             donoting = True # send ./txtfiles/news.txt
+                            textchunk(readfile('news.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         elif reqcmd == 'I':
                             donoting = True # send ./txtfiles/info.txt
+                            textchunk(readfile('info.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         elif reqcmd == 'W':
                             donoting = True # send ./txtfiles/weather.txt (weer.txt)
+                            textchunk(readfile('weer.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         elif reqcmd == 'Q':
                             donoting = True # send 'Totziens maar weer!'
+                            textchunk(readfile('qrt.txt'),chan_i,ACTCHANNELS[chan_i][1])
+                        elif reqcmd == 'V':
+                            donoting = True # send 'Totziens maar weer!'
+                            textchunk(readfile('version.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         else:
                             donoting = True # send 'ehh what moet dat nu? // whaaa?'
-                    print(donoting)
+                            textchunk('ehh what moet dat nu? // whaaa?',chan_i,ACTCHANNELS[chan_i][1])
                 else:
                     print('[ DEBUG ]\33[0;33m Stage Get CMD Unknown : "' + data_hex + '"')
                     # pass
