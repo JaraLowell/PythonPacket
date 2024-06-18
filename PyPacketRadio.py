@@ -782,7 +782,7 @@ async def go_serial():
                     else:
                         beacon = send_tnc(todo[1] + '\r', todo[0])
                         ser.write(beacon)
-                        ser.readline()
+                        tmp = ser.readline().decode()
                         await asyncio.sleep(pdelay)
                 queing = 0
             # And because we need to, send the mheard ever 15 full sec?
