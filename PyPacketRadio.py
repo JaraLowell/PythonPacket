@@ -734,27 +734,31 @@ async def go_serial():
                     if '//' in sendtext and numlines == 1 and ACTCHANNELS[chan_i][1] != 'CHANNEL NOT CONNECTED':
                         reqcmd = sendtext[2:3].upper()
                         if   reqcmd == 'H':
-                            donoting = True # send ./txtfiles/help.txt
+                            # send ./txtfiles/help.txt
                             textchunk(readfile('help.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         elif reqcmd == 'M':
                             donoting = True # send mHeard info...
                         elif reqcmd == 'N':
-                            donoting = True # send ./txtfiles/news.txt
-                            textchunk(readfile('news.txt'),chan_i,ACTCHANNELS[chan_i][1])
+                            if sendtext[2:6].upper() == 'NAME':
+                                MHeard[ACTCHANNELS[chan_i][1]][0] = sendtext[7:]
+                                textchunk('Thank you ' + sendtext[7:] + ',recored your sysop name in database.',chan_i,ACTCHANNELS[chan_i][1])
+                            else:
+                                # send ./txtfiles/news.txt
+                                textchunk(readfile('news.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         elif reqcmd == 'I':
-                            donoting = True # send ./txtfiles/info.txt
+                            # send ./txtfiles/info.txt
                             textchunk(readfile('info.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         elif reqcmd == 'W':
-                            donoting = True # send ./txtfiles/weather.txt (weer.txt)
+                            # send ./txtfiles/weather.txt (weer.txt)
                             textchunk(readfile('weer.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         elif reqcmd == 'Q':
-                            donoting = True # send 'Totziens maar weer!'
+                            # send 'Totziens maar weer!'
                             textchunk(readfile('qrt.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         elif reqcmd == 'V':
-                            donoting = True # send 'Totziens maar weer!'
+                            # send 'Totziens maar weer!'
                             textchunk(readfile('version.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         else:
-                            donoting = True # send 'ehh what moet dat nu? // whaaa?'
+                            # send 'ehh what moet dat nu? // whaaa?'
                             textchunk('ehh what moet dat nu? // whaaa?',chan_i,ACTCHANNELS[chan_i][1])
                 else:
                     print('[ DEBUG ]\33[0;33m Stage Get CMD Unknown : "' + data_hex + '"')
