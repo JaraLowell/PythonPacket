@@ -705,7 +705,7 @@ async def go_serial():
                     await sendmsg(chan_i,'cmd5',data_decode[:-1] + heardnew)
                     heardnew = callsign
                 elif data_int == 6:
-                    data_decode = (codecs.decode(data, 'cp850')[3:])
+                    data_decode = (codecs.decode(data, 'cp850')[3:-1])
                     data_out = data_decode.splitlines()
                     sendtext = ''
                     _print('\33[1;36m', end='')
@@ -775,7 +775,11 @@ async def go_serial():
                             textchunk('Heard Station log not yet implemented.',chan_i,str(ACTCHANNELS[chan_i][1]))
                         elif reqcmd == 'C':
                             # //CSTAT Show all active connections
-                            textchunk('Channel Status not yet implemented.',chan_i,str(ACTCHANNELS[chan_i][1]))
+                            # //C <call> ?? connect to a call ?!
+                            if sendtext[2:4].upper() == 'CS':
+                                textchunk('Channel Status not yet implemented.',chan_i,str(ACTCHANNELS[chan_i][1]))
+                            else:
+                                textchunk('Connect to via // not yet implemented.',chan_i,str(ACTCHANNELS[chan_i][1]))
                         elif reqcmd == 'E':
                             # //Echo
                             tmp = ''
@@ -786,10 +790,13 @@ async def go_serial():
                             if sendtext[2:6].upper() == 'NEWS':
                                 # //NEWS send ./txtfiles/news.txt
                                 textchunk(readfile('news.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
-                            else:
+                            elif sendtext[2:6].upper() == 'NAME':
                                 # //NAME <name> Store name in database
                                 MHeard[str(ACTCHANNELS[chan_i][1])][0] = sendtext[7:]
                                 textchunk('Thank you ' + sendtext[7:] + ',recored your sysop name in database.',chan_i,str(ACTCHANNELS[chan_i][1]))
+                            else:
+                                # //N news...
+                                textchunk(readfile('news.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
                         elif reqcmd == 'I':
                             # //INFO send ./txtfiles/info.txt
                             textchunk(readfile('info.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
