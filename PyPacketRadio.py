@@ -457,31 +457,34 @@ def logheard(call, cmd, info):
 
     # 'callsign' = ['name','jo locator if known',first heard,last heard,heard count,first connect, last connect, connect count];
     #                  0              1              2           3           4           5             6             7
-    if cmd == 5:
-        if call in MHeard:
-            MHeard[call][3] = tnow
-            MHeard[call][4] += 1
-        else:
-            MHeard[call] = ['', '', tnow, tnow, 1, 0, 0, 0]
-            if MyCall == call:
-                MHeard[call][0] = config.get('radio', 'sysop')
+    if len(call) > 3 and len(call) < 7:
+        if cmd == 5:
+            if call in MHeard:
+                MHeard[call][3] = tnow
+                MHeard[call][4] += 1
             else:
-                sendqueue.append([0,'New station registered with station call ' + call])
-    elif cmd == 6:
-        if call in MHeard:
-            if len(info) >= len(MHeard[call][1]) and str(info) != '':
-                MHeard[call][1] = str(info)
-        else:
-            MHeard[call] = ['', str(info), tnow, tnow, 1, 0, 0, 0]
-        MHeard[call][4] += 1
-        MHeard[call][3] = tnow
-    elif cmd == 3:
-        if call in MHeard:
-            MHeard[call][6] = tnow
+                MHeard[call] = ['', '', tnow, tnow, 1, 0, 0, 0]
+                if MyCall == call:
+                    MHeard[call][0] = config.get('radio', 'sysop')
+                else:
+                    sendqueue.append([0,'New station registered with station call ' + call])
+        elif cmd == 6:
+            if call in MHeard:
+                if len(info) >= len(MHeard[call][1]) and str(info) != '':
+                    MHeard[call][1] = str(info)
+            else:
+                MHeard[call] = ['', str(info), tnow, tnow, 1, 0, 0, 0]
             MHeard[call][4] += 1
-            MHeard[call][7] += 1
-            if MHeard[call][5] == 0:
-                MHeard[call][5] = tnow
+            MHeard[call][3] = tnow
+        elif cmd == 3:
+            if call in MHeard:
+                MHeard[call][6] = tnow
+                MHeard[call][4] += 1
+                MHeard[call][7] += 1
+                if MHeard[call][5] == 0:
+                    MHeard[call][5] = tnow
+    else:
+        print('[ DEBUG ] Trying to log a call name thats not 6 long > ' + call)
 
 # Set TNC in WA8DED Hostmode
 def init_tncinWa8ded():
@@ -609,7 +612,7 @@ async def go_serial():
                 if len(data_hex) > 4:
                     chan_i = int(data_hex[4:6].upper(), 16) - 1
                 else:
-                    chan_i = int(data_hex[2:4].upper(), 16) # ?? should need be [0:2]
+                    chan_i = int(data_hex[2:4].upper(), 16) - 1 # ?? should need be [0:2]
 
                 # these two cases should not happen but happen... 
                 if chan_i > 10 and chan_i < 255 or chan_i < 0:
@@ -620,6 +623,11 @@ async def go_serial():
                 ser.write(poll_byte + b'\x01\x00G')
                 data = ser.readline()
                 data_hex = data.hex()
+
+                # why we getting ff010100 + plus real package?!
+                if data_hex[:8] == 'ff010100' and len(data_hex) > 8: 
+                    data_hex = data_hex[8:]
+                    data = data[4:]
 
                 if data_hex == '': data_hex = '0000'
 
@@ -633,6 +641,7 @@ async def go_serial():
                     polling = 1
                 elif data_int == 1:
                     # print("Succes with Messages")
+                    print('[ DEBUG ] ' + data_hex)
                     data_decode = (codecs.decode(data, 'cp850')[1:])
                     print(namechan + " [1] \33[1;32m" + data_decode + "\33[0m")
                     await sendmsg(chan_i,'cmd1',"OK: " + data_decode)
@@ -672,8 +681,11 @@ async def go_serial():
                     await sendmsg(chan_i,'chat',data_decode)
                 elif data_int == 4:
                     # print("Monitor Header NoInfo")
-                    print(namechan + " \33[1;37m" + data.decode()[2:] + "\33[0m")
-                    await sendmsg(chan_i,'cmd4',data.decode()[2:-1])
+                    data_decode = (codecs.decode(data, 'cp850')[2:])
+                    # callsign = data_decode.split(" ")[1]
+                    # logheard(callsign, 5, '')
+                    print(namechan + " \33[1;37m" + data_decode + "\33[0m")
+                    await sendmsg(chan_i,'cmd4',data_decode[:-1])
                 elif data_int == 5:
                     # print("Monitor Header With Info")
                     data_decode = (codecs.decode(data, 'cp850')[2:])
@@ -688,7 +700,7 @@ async def go_serial():
                     if callsign not in MHeard:
                         heardnew = ' * NEW *'
 
-                    logheard(callsign, 5, '');
+                    logheard(callsign, 5, '')
                     print(namechan + " \33[1;37m" + data_decode + heardnew + "\33[0m")
                     await sendmsg(chan_i,'cmd5',data_decode[:-1] + heardnew)
                     heardnew = callsign
@@ -756,31 +768,47 @@ async def go_serial():
                     if '//' in sendtext and numlines == 1 and ACTCHANNELS[chan_i][1] != 'CHANNEL NOT CONNECTED':
                         reqcmd = sendtext[2:3].upper()
                         if   reqcmd == 'H':
-                            # send ./txtfiles/help.txt
+                            # //HELP send ./txtfiles/help.txt
                             textchunk(readfile('help.txt'),chan_i,ACTCHANNELS[chan_i][1])
                         elif reqcmd == 'M':
-                            donoting = True # send mHeard info...
+                            # send mHeard info...
+                            textchunk('Heard Station log not yet implemented.',chan_i,str(ACTCHANNELS[chan_i][1]))
+                        elif reqcmd == 'C':
+                            # //CSTAT Show all active connections
+                            textchunk('Channel Status not yet implemented.',chan_i,str(ACTCHANNELS[chan_i][1]))
+                        elif reqcmd == 'E':
+                            # //Echo
+                            tmp = ''
+                            if sendtext[2:6].upper() == 'ECHO': tmp = sendtext[7:]
+                            else: tmp = sendtext[4:]
+                            textchunk(tmp,chan_i,str(ACTCHANNELS[chan_i][1]))
                         elif reqcmd == 'N':
                             if sendtext[2:6].upper() == 'NEWS':
-                                # send ./txtfiles/news.txt
+                                # //NEWS send ./txtfiles/news.txt
                                 textchunk(readfile('news.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
                             else:
+                                # //NAME <name> Store name in database
                                 MHeard[str(ACTCHANNELS[chan_i][1])][0] = sendtext[7:]
                                 textchunk('Thank you ' + sendtext[7:] + ',recored your sysop name in database.',chan_i,str(ACTCHANNELS[chan_i][1]))
                         elif reqcmd == 'I':
-                            # send ./txtfiles/info.txt
+                            # //INFO send ./txtfiles/info.txt
                             textchunk(readfile('info.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
                         elif reqcmd == 'W':
-                            # send ./txtfiles/weather.txt (weer.txt)
+                            # //Weather send ./txtfiles/weather.txt (weer.txt)
                             textchunk(readfile('weer.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
                         elif reqcmd == 'Q':
-                            # send 'Totziens maar weer!'
+                            # //QUIT Disconnect with mnessage 'Totziens maar weer!'
                             textchunk(readfile('qrt.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
                             all_bytes = send_tncC('D', chan_i)
                             ser.write(all_bytes)
-                            tmp = ser.readline()[2:-1].decode()
+                            tmp = ser.readline().decode()
+                        elif reqcmd == 'D':                            
+                            # //DISC Disconnect
+                            all_bytes = send_tncC('D', chan_i)
+                            ser.write(all_bytes)
+                            tmp = ser.readline().decode()
                         elif reqcmd == 'V':
-                            # send 'Totziens maar weer!'
+                            # //VERSION Show version of software
                             textchunk(readfile('version.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
                         else:
                             # send 'ehh what moet dat nu? // whaaa?'
