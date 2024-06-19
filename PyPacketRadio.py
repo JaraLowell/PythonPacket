@@ -47,7 +47,7 @@ ChanLogPath = 'ChanLog.pk1'
 
 MyCall = config.get('radio', 'mycall')
 SendLengt = 127
-MyPath = os.getcwd() + os.path.sep + 'textfiles' + os.path.sep
+MyPath = os.getcwd() + os.path.sep + 'txtfiles' + os.path.sep
 
 monitorbuffer = []
 channelbuffers = []
@@ -125,14 +125,15 @@ async def register(websocket):
     await asyncio.sleep(0.0016)
     if monitorbuffer:
         for lines in monitorbuffer:
-            await websocket.send(json.dumps(lines[0])) # .replace("\\r", "n"))
+            await websocket.send(json.dumps(lines[0]).replace("\\n", "n"))
     await asyncio.sleep(0.1)
     if channelbuffers:
         for lines in channelbuffers:
-            await websocket.send(json.dumps(lines[0])) # .replace("\\r", "n"))
+            await websocket.send(json.dumps(lines[0]).replace("\\n", "n"))
     await asyncio.sleep(0.1)
     await websocket.send('{"cmd":"bulkdone"}')
     await websocket.send('{"cmd":"homepoint","station":"' + MyCall + '","lat":"' + str(config.get('radio', 'latitude')) + '","lon":"' + str(config.get('radio', 'longitude')) + '"}')
+    await sendmsg(0,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
 
 async def unregister(websocket):
     global USERS
@@ -519,6 +520,17 @@ def send_tnc(command, channel):
         allbytes.append(hex(ascii_val)[2:].zfill(2))
     return bytearray.fromhex(''.join(allbytes))
 
+def send_tncC(command, channel):
+    allbytes = []
+    allbytes.append('%02d' % channel)
+    allbytes.append('%02d' % 1)  # Info/CMD
+    txt_len = int(len(command) - 1)
+    allbytes.append(hex(txt_len)[2:].zfill(2))
+    for char in command:
+        ascii_val = ord(char)
+        allbytes.append(hex(ascii_val)[2:].zfill(2))
+    return bytearray.fromhex(''.join(allbytes))
+
 def init_tncConfig():
     global ACTCHANNELS
     ACTCHANNELS = {}
@@ -580,34 +592,34 @@ async def go_serial():
     while True:
         for x in range(6):
             if polling == 1:
+                await asyncio.sleep(pdelay)
                 ser.write(b'\xff\x01\x00G')
                 polling_data = ser.readline()
-                await asyncio.sleep(pdelay)
                 # print('IS 0000 > ' + polling_data.hex())
 
             data_hex = polling_data.hex()
-            if data_hex[0:4] == '0000' and len(data_hex) > 4:
-                data_hex = data_hex[4:]
-                print('[ DEBUG ]\33[0;33m Stage Poll 0000 + "' + data_hex + '"')
-
             if data_hex != 'ff0100':
                 polling = 0
-                chan_i = int(data_hex[4:6].upper(), 16) - 1
+
+                if data_hex == '': data_hex = '0000'
+
+                # ff 01 02 00
+                if len(data_hex) > 4:
+                    chan_i = int(data_hex[4:6].upper(), 16) - 1
+                else:
+                    chan_i = int(data_hex[2:4].upper(), 16)
 
                 # these two cases should not happen but happen... 
-                if chan_i > 10 and chan_i < 255 or chan_i < 0: chan_i = 0
+                if chan_i > 10 and chan_i < 255 or chan_i < 0:
+                    chan_i = 0
                 poll_byte = num2byte(chan_i)
+
+                await asyncio.sleep(pdelay)
                 ser.write(poll_byte + b'\x01\x00G')
                 data = ser.readline()
-                if data == '':
-                    print("[ DEBUG ]\33[0;31m We got noting, is there a TNC?")
-                    break
-
                 data_hex = data.hex()
-                if data_hex[0:4] == '0000' and len(data_hex) > 4:
-                    print('[ DEBUG ]\33[0;33m Stage Get 0000 + "' + data_hex + '"')
-                    data_hex = data_hex[4:]
-                    data = data[2:]
+
+                if data_hex == '': data_hex = '0000'
 
                 data_int = int(data_hex[2:4].upper(), 16)
                 namechan = '[Monitor]'
@@ -629,20 +641,18 @@ async def go_serial():
                     await sendmsg(chan_i,'cmd2',"Error: " + data_decode)
                 elif data_int == 3:
                     # print("Link Status")
-                    data_decode = (codecs.decode(data, 'cp850')[2:])
-                    print(namechan + " \33[0;37m" + data_decode + "\33[0m")
-                    await sendmsg(chan_i,'chat',data_decode)
+                    data_decode = (codecs.decode(data, 'cp850')[2:][:-1])
                     if 'DISCONNECTED' in data_decode:
                         # Channel chan_i got disconected
                         ACTCHANNELS[chan_i][1] = 'CHANNEL NOT CONNECTED'
                         ACTCHANNELS[chan_i][2] = 0
-                    if 'CONNECTED' in data_decode:
+                        await sendmsg(0,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
+                    elif 'CONNECTED' in data_decode:
                         # Channel chan_i got disconected
-                        remote_station = data_decode.split(" ")[5]
+                        remote_station = data_decode.split(" ")[3]
                         logheard(remote_station, 3, '')
                         if ACTCHANNELS[chan_i][1] != remote_station:
-                            ACTCHANNELS[chan_i][1] = remote_station
-                            ACTCHANNELS[chan_i][2] = 2
+                            print('we are here?')
                             ctext_file = 'ctext-' + remote_station + '.txt'
                             if os.path.isfile(MyPath + ctext_file):
                                 # We got a personal ctext send it...
@@ -652,6 +662,12 @@ async def go_serial():
                                 textchunk(readfile('ctext.txt'),chan_i,remote_station)
                             else:
                                 print('[ DEBUG ] No ctext.txt file in txtfiles folder!')
+                        ACTCHANNELS[chan_i][1] = remote_station
+                        ACTCHANNELS[chan_i][2] = 2
+                        await sendmsg(0,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
+
+                    print(namechan + " \33[0;37m" + data_decode + "\33[0m")
+                    await sendmsg(chan_i,'chat',data_decode)
                 elif data_int == 4:
                     # print("Monitor Header NoInfo")
                     print(namechan + " \33[1;37m" + data.decode()[2:] + "\33[0m")
@@ -685,7 +701,9 @@ async def go_serial():
                     _print('\33[0m', end='')
 
                     # grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
-                    await sendmsg(chan_i,'warn',sendtext[:-1])
+                    sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext[:-1])
+                    sendtext = sendtext.replace('\"','&quot;')
+                    await sendmsg(chan_i,'warn',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
 
                     locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}[0-9]{2}', data_decode.upper())
                     if not locator:
@@ -728,7 +746,9 @@ async def go_serial():
                         numlines += 1
                     _print('\33[0m', end='')
                     # grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
-                    await sendmsg(chan_i,'chat',sendtext[:-1])
+                    sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext[:-1])
+                    sendtext = sendtext.replace('\"','&quot;')
+                    await sendmsg(chan_i,'chat',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
                     # deal weith incomming // commands. 
                     donoting = False
                     if '//' in sendtext and numlines == 1 and ACTCHANNELS[chan_i][1] != 'CHANNEL NOT CONNECTED':
@@ -739,32 +759,33 @@ async def go_serial():
                         elif reqcmd == 'M':
                             donoting = True # send mHeard info...
                         elif reqcmd == 'N':
-                            if sendtext[2:6].upper() == 'NAME':
-                                MHeard[ACTCHANNELS[chan_i][1]][0] = sendtext[7:]
-                                textchunk('Thank you ' + sendtext[7:] + ',recored your sysop name in database.',chan_i,ACTCHANNELS[chan_i][1])
-                            else:
+                            if sendtext[2:6].upper() == 'NEWS':
                                 # send ./txtfiles/news.txt
-                                textchunk(readfile('news.txt'),chan_i,ACTCHANNELS[chan_i][1])
+                                textchunk(readfile('news.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
+                            else:
+                                MHeard[str(ACTCHANNELS[chan_i][1])][0] = sendtext[7:]
+                                textchunk('Thank you ' + sendtext[7:] + ',recored your sysop name in database.',chan_i,str(ACTCHANNELS[chan_i][1]))
                         elif reqcmd == 'I':
                             # send ./txtfiles/info.txt
-                            textchunk(readfile('info.txt'),chan_i,ACTCHANNELS[chan_i][1])
+                            textchunk(readfile('info.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
                         elif reqcmd == 'W':
                             # send ./txtfiles/weather.txt (weer.txt)
-                            textchunk(readfile('weer.txt'),chan_i,ACTCHANNELS[chan_i][1])
+                            textchunk(readfile('weer.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
                         elif reqcmd == 'Q':
                             # send 'Totziens maar weer!'
-                            textchunk(readfile('qrt.txt'),chan_i,ACTCHANNELS[chan_i][1])
+                            textchunk(readfile('qrt.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
+                            all_bytes = send_tncC('D', chan_i)
+                            ser.write(all_bytes)
+                            tmp = ser.readline()[2:-1].decode()
                         elif reqcmd == 'V':
                             # send 'Totziens maar weer!'
-                            textchunk(readfile('version.txt'),chan_i,ACTCHANNELS[chan_i][1])
+                            textchunk(readfile('version.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
                         else:
                             # send 'ehh what moet dat nu? // whaaa?'
-                            textchunk('ehh what moet dat nu? // whaaa?',chan_i,ACTCHANNELS[chan_i][1])
+                            textchunk('ehh what moet dat nu? // whaaa?',chan_i,str(ACTCHANNELS[chan_i][1]))
                 else:
                     print('[ DEBUG ]\33[0;33m Stage Get CMD Unknown : "' + data_hex + '"')
                     # pass
-
-                await asyncio.sleep(pdelay)
             x += 1
         else:
             x = 0
@@ -789,6 +810,11 @@ async def go_serial():
                     sendqueue.pop(0)
                     if todo[0] == 9 or todo[0] == 10:
                         await sendmsg(todo[0],'cmd4',todo[1])
+                    elif todo[0] > 19:
+                        beacon = send_tnc(todo[1], todo[0] - 20)
+                        ser.write(beacon)
+                        tmp = ser.readline().decode()
+                        await asyncio.sleep(pdelay)                       
                     else:
                         beacon = send_tnc(todo[1] + '\r', todo[0])
                         ser.write(beacon)
@@ -899,27 +925,27 @@ def textchunk(cnktext , chn, call):
     tmp = ''
     # Lets do some preg replacing to...
     sindex = cnktext.find('%')
-    if sindex:
+    if sindex != -1:
         cnktext = cnktext.replace('%V', 'PyPacketRadio v1.1')                               # GP version number, in this case it is 1.61
-        cnktext = cnktext.replace('%c', call)                                           # %c = The Call of the opposite Station
+        cnktext = cnktext.replace('%C', call)                                               # %c = The Call of the opposite Station
         if call in MHeard:
             if MHeard[call][0] != '':
-                cnktext = cnktext.replace('%n', MHeard[call][0] + ' ()' + call + ')')   # The Name of the opposite Station
+                cnktext = cnktext.replace('%N', MHeard[call][0] + ' (' + call + ')')        # The Name of the opposite Station
             else:
-                cnktext = cnktext.replace('%n', call)
-                tmp = 'Please register your name via //Name yourname'
+                cnktext = cnktext.replace('%N', call)
+                tmp = 'Please register your name via //N yourname'
         else:
-            cnktext = cnktext.replace('%n', call)
+            cnktext = cnktext.replace('%N', call)
         cnktext = cnktext.replace('%?', tmp)                                                # prompts the connected station to report its name if it has not yet included in the list of names (NAMES.GP)
-        cnktext = cnktext.replace('%y', MyCall)                                             # %y = One's own Call
-        cnktext = cnktext.replace('%k', str(chn))                                           # %k = channel number on which the text will be broadcast
-        cnktext = cnktext.replace('%t', time.strftime('%H:%M:%S'))                          # %t = T: current GP time in HH:MM:SS format, e.g. 10:41:32
-        cnktext = cnktext.replace('%d', time.strftime("%d/%m/%Y"))                          # %d = current date eg: 25.03.1991
+        cnktext = cnktext.replace('%Y', MyCall)                                             # %y = One's own Call
+        cnktext = cnktext.replace('%K', str(chn))                                           # %k = channel number on which the text will be broadcast
+        cnktext = cnktext.replace('%T', time.strftime('%H:%M:%S'))                          # %t = T: current GP time in HH:MM:SS format, e.g. 10:41:32
+        cnktext = cnktext.replace('%D', time.strftime("%d/%m/%Y"))                          # %d = current date eg: 25.03.1991
         # cnktext = cnktext.replace('%B', )                                                 # %b = Corresponds to the Bell Character (07h) we dont have this ?!
         tmp = ''
         if os.path.exists('txtfiles/news.txt'): tmp = 'There is news via //News'
-        cnktext = cnktext.replace('%i', tmp)                                                # %i = is there new news? News
-        cnktext = cnktext.replace('%z', datetime.now().astimezone().strftime("%z"))         # %z = The Time Zone of the server
+        cnktext = cnktext.replace('%I', tmp)                                                # %i = is there new news? News
+        cnktext = cnktext.replace('%Z', 'UTC' + datetime.now().astimezone().strftime("%z")) # %z = The Time Zone of the server
         cnktext = cnktext.replace('%_', '\r')                                               # %_: ends the line and moves the cursor to a new line
         cnktext = cnktext.replace('%>', 'to ' + MyCall + ' >')                              # bit like a command prompt place holder at bottom of msg
         sindex = cnktext.find('%O')
@@ -929,19 +955,28 @@ def textchunk(cnktext , chn, call):
             cnktext = cnktext.replace('%O', myline)                                         # %o = Reads a Line from ORIGIN.GPI (Chosen at Random)
         # cnktext = cnktext.replace('%%', '%')                                              # percent sign
 
-    cnktext = re.sub(r'(\r\n|\n|\r)', '\n', cnktext)                                        # lets make sure we only use \n as enter
-    cnktext = cnktext[:-1]
-
+    cnktext = re.sub(r'(\r\n|\n|\r)', '\r', cnktext)                                        # lets make sure we only use \n as enter
+    cnktext = cnktext.rstrip()
+    cnktext = cnktext + '\r'
     # Next part we need is tring to parts if string longer then 7f (127) bytes (characters)
-    while len(cnktext) > SendLengt:
-        tmp = cnktext[0:SendLengt]
-        cnktext = cnktext[SendLengt:]
-        print('*' * 80)
-        sendqueue.append([chn,cnktext])
-    #do we have left over?
-    if len(cnktext) != 0:
-        print('*' * 80)
-        sendqueue.append([chn,cnktext])
+    if len(cnktext) > 253:
+        while len(cnktext) > 253:
+            tmp = cnktext[0:253]
+            cnktext = cnktext[253:]
+            # sendqueue.append([chn + 20,tmp])
+            print('[ DEBUG ] >>> ' + tmp)
+            beacon = send_tnc(tmp, chn)
+            ser.write(beacon)
+            tmp = ser.readline().decode()
+        if len(cnktext) > 0:
+            beacon = send_tnc(cnktext, chn)
+            ser.write(beacon)
+            tmp = ser.readline().decode()
+    else:
+        # sendqueue.append([chn + 20,cnktext])
+        beacon = send_tnc(cnktext, chn)
+        ser.write(beacon)
+        tmp = ser.readline().decode()
 
 #---------------------------------------------------------------- Start Mains -----------------------------------------------------------------------------
 

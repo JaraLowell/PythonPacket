@@ -1,6 +1,6 @@
-Tot ziens, %n
+Tot ziens, %N
 
 Spreuk van de dag:
 %O
 
-NL0MSK: %c uitgelogd %d om %t
+NL0MSK: %C uitgelogd %D om %T

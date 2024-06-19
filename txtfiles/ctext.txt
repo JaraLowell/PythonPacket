@@ -1,2 +1,2 @@
-          %t %z <<< NL0MSK Mussel JO32MW49 >>> %d
-Welcome %n,
+%T %Z <<< NL0MSK Mussel JO32MW49 >>> %D
+Welcome %N,
