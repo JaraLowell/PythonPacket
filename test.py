@@ -23,8 +23,7 @@ def readfile(file):
 def textchunk(cnktext , chn, callsign):
     tmp = ''
     # Lets do some preg replacing to...
-    sindex = cnktext.find('%')
-    if sindex != -1:
+    if '%' in cnktext:
         cnktext = cnktext.replace('%V', 'PyPacketRadio v1.1')                               # GP version number, in this case it is 1.61
         cnktext = cnktext.replace('%C', callsign)                                           # %c = The Call of the opposite Station
         if callsign in MHeard:

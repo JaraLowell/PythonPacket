@@ -12,6 +12,7 @@ import sys
 import asyncio
 import gc
 import re
+import math
 
 # psutil and websockets needs pip install (and maybe codecs as well?)
 import psutil
@@ -20,6 +21,7 @@ import codecs
 import functools
 import json
 from http import HTTPStatus
+import random
 
 # Next two are for the radio side of things
 import serial
@@ -607,7 +609,7 @@ async def go_serial():
                 if len(data_hex) > 4:
                     chan_i = int(data_hex[4:6].upper(), 16) - 1
                 else:
-                    chan_i = int(data_hex[2:4].upper(), 16)
+                    chan_i = int(data_hex[2:4].upper(), 16) # ?? should need be [0:2]
 
                 # these two cases should not happen but happen... 
                 if chan_i > 10 and chan_i < 255 or chan_i < 0:
@@ -856,6 +858,41 @@ def LatLon2qth(latitude, longitude):
             lat = 10 * b[1]
     return locator
 
+def locator2deg(locator):
+    if len(locator) == 6:
+        locator += "55AA"
+    if len(locator) == 7:
+        locator += "LL"
+
+    loca = [ord(char) - 65 for char in locator]
+    loca[2] += 17
+    loca[3] += 17
+    loca[6] += 17
+    loca[7] += 17
+    lon = (loca[0] * 20 + loca[2] * 2 + loca[4] / 12 + loca[6] / 120 + loca[8] / 2880 - 180)
+    lat = (loca[1] * 10 + loca[3] + loca[5] / 24 + loca[7] / 240 + loca[9] / 5760 - 90)
+    return {'latitude': lat, 'longitude': lon}
+
+def calc_gc(lat1, lon1, lat2, lon2):
+    d = math.acos(math.sin(lat1) * math.sin(lat2) + math.cos(lat1) * math.cos(lat2) * math.cos(lon1 - lon2))
+    gc_d = round(((180.0 / math.pi) * d) * 60 * 10) / 10
+    gc_dm = round(1.852 * gc_d * 10) / 10
+
+    if math.sin(lon2 - lon1) < 0:
+        tc = math.acos((math.sin(lat2) - math.sin(lat1) * math.cos(d)) / (math.sin(d) * math.cos(lat1)))
+    elif lon2 - lon1 == 0:
+        if lat2 < lat1:
+            tc = (math.pi / 180) * 180
+        else:
+            tc = 0
+    else:
+        tc = 2 * math.pi - math.acos((math.sin(lat2) - math.sin(lat1) * math.cos(d)) / (math.sin(d) * math.cos(lat1)))
+
+    gc_tc = round(tc * (180.0 / math.pi) * 10) / 10
+    winddir = ['N', 'NNO', 'NO', 'ONO', 'O', 'OZO', 'ZO', 'ZZO', 'Z', 'ZZW', 'ZW', 'WZW', 'W', 'WNW', 'NW', 'NNW', 'N']
+    wtet = winddir[round(gc_tc * 16 / 360)]
+    return f"{gc_dm}Km {wtet} ({gc_tc})"
+
 def is_hour_between(start, end):
     now = datetime.now().hour
     is_between = False
@@ -904,13 +941,6 @@ async def cleaner():
         # Memory Cleaner...
         gc.collect()
 
-###       T O     D O       ###
-# These now be the preg replaces used in GP
-# Plus the max byte length.
-# this can then be used in file reads, console, web and other inputs send to the tnc
-
-import random
-
 def readfile(file):
     filetoread = MyPath + file
     contents = ''
@@ -924,8 +954,7 @@ def readfile(file):
 def textchunk(cnktext , chn, call):
     tmp = ''
     # Lets do some preg replacing to...
-    sindex = cnktext.find('%')
-    if sindex != -1:
+    if '%' in cnktext:
         cnktext = cnktext.replace('%V', 'PyPacketRadio v1.1')                               # GP version number, in this case it is 1.61
         cnktext = cnktext.replace('%C', call)                                               # %c = The Call of the opposite Station
         if call in MHeard:
