@@ -449,15 +449,11 @@ ser.writeTimeout = 2                # timeout for write
 
 def logheard(call, cmd, info):
     tnow = int(time.time())
-
-    # Remove the -Channel if present
-    sindex = call.find('-')
-    if sindex > 1:
-        call = call[:sindex]
-
     # 'callsign' = ['name','jo locator if known',first heard,last heard,heard count,first connect, last connect, connect count];
     #                  0              1              2           3           4           5             6             7
-    if len(call) > 3 and len(call) < 7:
+    testcallsign = re.search('[\\d]{0,1}[A-Z]{1,2}\\d([A-Z]{1,4}|\\d{3,3}|\\d{1,3}[A-Z])[A-Z]{0,5}', call.upper())
+    if testcallsign:
+        call = testcallsign.group(0)
         if cmd == 5:
             if call in MHeard:
                 MHeard[call][3] = tnow
@@ -484,7 +480,7 @@ def logheard(call, cmd, info):
                 if MHeard[call][5] == 0:
                     MHeard[call][5] = tnow
     else:
-        print('[ DEBUG ] Trying to log a call name thats not 6 long > ' + call)
+        print('[ DEBUG ] Log Error, Not a callsign > ' + call)
 
 # Set TNC in WA8DED Hostmode
 def init_tncinWa8ded():
@@ -606,6 +602,7 @@ async def go_serial():
             if data_hex != 'ff0100':
                 polling = 0
 
+                # How in *** mind can a serial read return absolutly noting....
                 if data_hex == '': data_hex = '0000'
 
                 # ff 01 02 00
@@ -625,10 +622,12 @@ async def go_serial():
                 data_hex = data.hex()
 
                 # why we getting ff010100 + plus real package?!
+                # Seriously need find a good way to repair a `double` serial read
                 if data_hex[:8] == 'ff010100' and len(data_hex) > 8: 
                     data_hex = data_hex[8:]
                     data = data[4:]
 
+                # How in *** mind can a serial read return absolutly noting....
                 if data_hex == '': data_hex = '0000'
 
                 data_int = int(data_hex[2:4].upper(), 16)
@@ -637,21 +636,21 @@ async def go_serial():
                     namechan = '[Chan %02d]' % (chan_i,)
 
                 if data_int == 0:
-                    # print("Status : Succes with NoInfo")
+                    # Success, no data follows
                     polling = 1
                 elif data_int == 1:
-                    # print("Succes with Messages")
+                    # Success, message follows (end with 00)
                     print('[ DEBUG ] ' + data_hex)
                     data_decode = (codecs.decode(data, 'cp850')[1:])
                     print(namechan + " [1] \33[1;32m" + data_decode + "\33[0m")
                     await sendmsg(chan_i,'cmd1',"OK: " + data_decode)
                 elif data_int == 2:
-                    # print("Failure with Messages")
+                    # Failure, message follows
                     data_decode = (codecs.decode(data, 'cp850')[2:])
                     print(namechan + " [2] \33[1;31m" + data_decode + "\33[0m")
                     await sendmsg(chan_i,'cmd2',"Error: " + data_decode)
                 elif data_int == 3:
-                    # print("Link Status")
+                    # Link status
                     data_decode = (codecs.decode(data, 'cp850')[2:][:-1])
                     if 'DISCONNECTED' in data_decode:
                         # Channel chan_i got disconected
@@ -680,14 +679,19 @@ async def go_serial():
                     print(namechan + " \33[0;37m" + data_decode + "\33[0m")
                     await sendmsg(chan_i,'chat',data_decode)
                 elif data_int == 4:
-                    # print("Monitor Header NoInfo")
+                    # Monitor header/no info
                     data_decode = (codecs.decode(data, 'cp850')[2:])
-                    # callsign = data_decode.split(" ")[1]
-                    # logheard(callsign, 5, '')
+
+                    callsign = data_decode.split(" ")[1]
+                    sindex = callsign.find('-')
+                    if sindex > 1:
+                        callsign = callsign[:sindex]
+                    logheard(callsign, 5, '')
+
                     print(namechan + " \33[1;37m" + data_decode + "\33[0m")
                     await sendmsg(chan_i,'cmd4',data_decode[:-1])
                 elif data_int == 5:
-                    # print("Monitor Header With Info")
+                    # Monitor header/info
                     data_decode = (codecs.decode(data, 'cp850')[2:])
 
                     #need check mheard if new or not and appent to msg *NEW*
@@ -705,6 +709,7 @@ async def go_serial():
                     await sendmsg(chan_i,'cmd5',data_decode[:-1] + heardnew)
                     heardnew = callsign
                 elif data_int == 6:
+                    # Monitor information
                     data_decode = (codecs.decode(data, 'cp850')[3:-1])
                     data_out = data_decode.splitlines()
                     sendtext = ''
@@ -746,7 +751,7 @@ async def go_serial():
                     
                     heardnew = ''
                 elif data_int == 7:
-                    # print("Connect information")
+                    # Connected information
                     # This should not be on monitor
                     data_decode = (codecs.decode(data, 'cp850')[3:])
                     data_out = data_decode.splitlines()
