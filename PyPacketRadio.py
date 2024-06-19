@@ -714,7 +714,6 @@ async def go_serial():
                         sendtext += lines + '\r'
                     _print('\33[0m', end='')
 
-                    # grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
                     sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext[:-1])
                     sendtext = sendtext.replace('\"','&quot;')
                     await sendmsg(chan_i,'warn',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
@@ -759,67 +758,13 @@ async def go_serial():
                         sendtext += lines + '\r'
                         numlines += 1
                     _print('\33[0m', end='')
-                    # grr = str(sendtext[:-1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
                     sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext[:-1])
                     sendtext = sendtext.replace('\"','&quot;')
                     await sendmsg(chan_i,'chat',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
+
                     # deal weith incomming // commands. 
-                    donoting = False
                     if '//' in sendtext and numlines == 1 and ACTCHANNELS[chan_i][1] != 'CHANNEL NOT CONNECTED':
-                        reqcmd = sendtext[2:3].upper()
-                        if   reqcmd == 'H':
-                            # //HELP send ./txtfiles/help.txt
-                            textchunk(readfile('help.txt'),chan_i,ACTCHANNELS[chan_i][1])
-                        elif reqcmd == 'M':
-                            # send mHeard info...
-                            textchunk('Heard Station log not yet implemented.',chan_i,str(ACTCHANNELS[chan_i][1]))
-                        elif reqcmd == 'C':
-                            # //CSTAT Show all active connections
-                            # //C <call> ?? connect to a call ?!
-                            if sendtext[2:4].upper() == 'CS':
-                                textchunk('Channel Status not yet implemented.',chan_i,str(ACTCHANNELS[chan_i][1]))
-                            else:
-                                textchunk('Connect to via // not yet implemented.',chan_i,str(ACTCHANNELS[chan_i][1]))
-                        elif reqcmd == 'E':
-                            # //Echo
-                            tmp = ''
-                            if sendtext[2:6].upper() == 'ECHO': tmp = sendtext[7:]
-                            else: tmp = sendtext[4:]
-                            textchunk(tmp,chan_i,str(ACTCHANNELS[chan_i][1]))
-                        elif reqcmd == 'N':
-                            if sendtext[2:6].upper() == 'NEWS':
-                                # //NEWS send ./txtfiles/news.txt
-                                textchunk(readfile('news.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
-                            elif sendtext[2:6].upper() == 'NAME':
-                                # //NAME <name> Store name in database
-                                MHeard[str(ACTCHANNELS[chan_i][1])][0] = sendtext[7:]
-                                textchunk('Thank you ' + sendtext[7:] + ',recored your sysop name in database.',chan_i,str(ACTCHANNELS[chan_i][1]))
-                            else:
-                                # //N news...
-                                textchunk(readfile('news.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
-                        elif reqcmd == 'I':
-                            # //INFO send ./txtfiles/info.txt
-                            textchunk(readfile('info.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
-                        elif reqcmd == 'W':
-                            # //Weather send ./txtfiles/weather.txt (weer.txt)
-                            textchunk(readfile('weer.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
-                        elif reqcmd == 'Q':
-                            # //QUIT Disconnect with mnessage 'Totziens maar weer!'
-                            textchunk(readfile('qrt.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
-                            all_bytes = send_tncC('D', chan_i)
-                            ser.write(all_bytes)
-                            tmp = ser.readline().decode()
-                        elif reqcmd == 'D':                            
-                            # //DISC Disconnect
-                            all_bytes = send_tncC('D', chan_i)
-                            ser.write(all_bytes)
-                            tmp = ser.readline().decode()
-                        elif reqcmd == 'V':
-                            # //VERSION Show version of software
-                            textchunk(readfile('version.txt'),chan_i,str(ACTCHANNELS[chan_i][1]))
-                        else:
-                            # send 'ehh what moet dat nu? // whaaa?'
-                            textchunk('ehh what moet dat nu? // whaaa?',chan_i,str(ACTCHANNELS[chan_i][1]))
+                        menuhandle(chan_i, ACTCHANNELS[chan_i][1], sendtext)
                 else:
                     print('[ DEBUG ]\33[0;33m Stage Get CMD Unknown : "' + data_hex + '"')
                     # pass
@@ -868,6 +813,59 @@ async def go_serial():
                 else:
                     await sendmsg(100,'loraHeard',json.dumps(LoraDB).replace('\"','\\\"'))
                     sendbuffs = 0
+
+# Handle // Commands...
+def menuhandle(chan, call, cmdtxt):
+    reqcmd = cmdtxt[2:3].upper()
+    if   reqcmd == 'H':
+        # //HELP send ./txtfiles/help.txt
+        textchunk(readfile('help.txt'),chan,call)
+    elif reqcmd == 'M':
+        # send mHeard info...
+        textchunk('Heard Station log not yet implemented.',chan,str(call))
+    elif reqcmd == 'C':
+        # //CSTAT Show all active connections
+        # //C <call> ?? connect to a call ?!
+        if cmdtxt[2:4].upper() == 'CS':
+            textchunk('Channel Status not yet implemented.',chan,str(call))
+        else:
+            textchunk('Connect to via // not yet implemented.',chan,str(call))
+    elif reqcmd == 'E':
+        # //Echo
+        tmp = ''
+        if cmdtxt[2:6].upper() == 'ECHO': tmp = cmdtxt[7:]
+        else: tmp = cmdtxt[4:]
+        textchunk(tmp,chan,str(call))
+    elif reqcmd == 'N':
+        if cmdtxt[2:6].upper() == 'NAME':
+            MHeard[str(call)][0] = cmdtxt[7:]
+            textchunk('Thank you ' + cmdtxt[7:] + ',recored your sysop name in database.',chan,str(call))            
+        else:
+            # //NEWS send ./txtfiles/news.txt
+            textchunk(readfile('news.txt'),chan,str(call))
+    elif reqcmd == 'I':
+        # //INFO send ./txtfiles/info.txt
+        textchunk(readfile('info.txt'),chan,str(call))
+    elif reqcmd == 'W':
+        # //Weather send ./txtfiles/weather.txt (weer.txt)
+        textchunk(readfile('weer.txt'),chan,str(call))
+    elif reqcmd == 'Q':
+        # //QUIT Disconnect with mnessage 'Totziens maar weer!'
+        textchunk(readfile('qrt.txt'),chan,str(call))
+        all_bytes = send_tncC('D', chan)
+        ser.write(all_bytes)
+        tmp = ser.readline().decode()
+    elif reqcmd == 'D':                            
+        # //DISC Disconnect
+        all_bytes = send_tncC('D', chan)
+        ser.write(all_bytes)
+        tmp = ser.readline().decode()
+    elif reqcmd == 'V':
+        # //VERSION Show version of software
+        textchunk(readfile('version.txt'),chan,str(call))
+    else:
+        # send 'ehh what moet dat nu? // whaaa?'
+        textchunk('ehh what moet dat nu? // whaaa?',chan,str(call))
 
 #-------------------------------------------------------------- Side Functions ---------------------------------------------------------------------------
 
@@ -997,7 +995,7 @@ def textchunk(cnktext , chn, call):
                 cnktext = cnktext.replace('%N', MHeard[call][0] + ' (' + call + ')')        # The Name of the opposite Station
             else:
                 cnktext = cnktext.replace('%N', call)
-                tmp = 'Please register your name via //N yourname'
+                tmp = 'Please register your name via //Name yourname'
         else:
             cnktext = cnktext.replace('%N', call)
         cnktext = cnktext.replace('%?', tmp)                                                # prompts the connected station to report its name if it has not yet included in the list of names (NAMES.GP)
