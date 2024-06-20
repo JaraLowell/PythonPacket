@@ -656,7 +656,7 @@ async def go_serial():
                     await sendmsg(chan_i,'cmd2',"Error: " + data_decode)
                 elif data_int == 3:
                     # Link status
-                    data_decode = data_decode #[2:-1]
+                    data_decode = data_decode[2:-1]
                     if 'DISCONNECTED' in data_decode:
                         # Channel chan_i got disconected
                         ACTCHANNELS[chan_i][1] = 'CHANNEL NOT CONNECTED'
@@ -667,7 +667,6 @@ async def go_serial():
                         remote_station = data_decode.split(" ")[3]
                         logheard(remote_station, 3, '')
                         if ACTCHANNELS[chan_i][1] != remote_station:
-                            print('we are here?')
                             ctext_file = 'ctext-' + remote_station + '.txt'
                             if os.path.isfile(MyPath + ctext_file):
                                 # We got a personal ctext send it...
