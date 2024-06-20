@@ -434,6 +434,10 @@ polling = 1
 channel_to_read_byte = b'x00'
 tlast = 0
 
+tnc_at2 = 0
+tnc_at3 = 180000
+tnc_frac = 400
+
 ser = serial.Serial()
 ser.port = config.get('intertnc', 'serial_port')
 ser.baudrate = config.get('intertnc', 'serial_baud')
@@ -883,18 +887,28 @@ async def menuhandle(chan, call, cmdtxt):
         sendtext = readfile('version.txt')
     elif reqcmd == 'P':
         # //P Show TNC Settings
+        ser.write(b'\x00\x01\x00\x46')         # ^F
+        tmp = (ser.readline())[2:-1].decode()
+        tnc_frac = int(tmp) 
+        ser.write(b'\x00\x01\x02\x40\x54\x32') # ^@T2
+        tmp = (ser.readline())[2:-1].decode()
+        tnc_at2 = int(tmp)
+        ser.write(b'\x00\x01\x02\x40\x54\x33') # ^@T3
+        tmp = (ser.readline())[2:-1].decode()
+        tnc_at3 = int(tmp)
+        print('[ DEBUG ] Frac:' + str(tnc_frac) + ', @T2:' + str(tnc_at2) + ', @T3:' + str(tnc_at3))
         sendtext = 'Timing-Parameters of %Y:\r\r'
         pp = config.get('tncinit', '12')[2:]
         pp += + ' ' * (9 - len(pp))
         sendtext += 'P-Persistance: ' + pp
         pp = config.get('tncinit', '10')[2:]
         sendtext += 'Slottime: ' + pp + '\r'
-        pp = '350 ' # dont have F 350
+        pp = str(tnc_frac)
         sendtext += 'Frack: ' + pp + '\r'
-        pp = '150 ' # T2 Timer ?
+        pp = str(tnc_at2)
         pp += + ' ' * (14 - len(pp))
         sendtext += 'T2-Timer: ' + pp
-        pp = '30000 ' # T3-Timer ?
+        pp = str(tnc_at3)
         sendtext += 'T3-Timer: ' + pp + '\r'
         pp = config.get('tncinit', '11')[2:]
         pp += + ' ' * (15 - len(pp))
