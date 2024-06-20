@@ -2,72 +2,85 @@ import os
 import time
 from datetime import date, datetime
 import sys
+import asyncio
 import gc
 import re
+import math
+
+# psutil and websockets needs pip install (and maybe codecs as well?)
+import psutil
+import websockets
+import codecs
+import functools
+import json
+from http import HTTPStatus
 import random
+
+# Next two are for the radio side of things
+import serial
+import configparser
+
+import pickle 
 
 MHeard = []
 MyCall = 'NL0MSK'
 SendLengt = 251
 
-def readfile(file):
-    filetoread = os.getcwd() + os.path.sep + 'txtfiles' + os.path.sep + file
-    contents = ''
-    if os.path.isfile(filetoread):
-        with open(filetoread, 'r') as f:
-            contents = f.read()
-        if contents != '':
-            return contents
-    return 'File `' + file + '` not found or empty.'
+MHeardPath = 'MHeard.pkl'
 
-def textchunk(cnktext , chn, callsign):
-    tmp = ''
-    # Lets do some preg replacing to...
-    if '%' in cnktext:
-        cnktext = cnktext.replace('%V', 'PyPacketRadio v1.1')                               # GP version number, in this case it is 1.61
-        cnktext = cnktext.replace('%C', callsign)                                           # %c = The Call of the opposite Station
-        if callsign in MHeard:
-            if MHeard[callsign][0] != '':
-                cnktext = cnktext.replace('%N', MHeard[callsign][0] + ' ()' + callsign + ')')   # The Name of the opposite Station
-            else:
-                cnktext = cnktext.replace('%N', callsign)
-                tmp = 'Please register your name via //Name yourname'
-        else:
-            cnktext = cnktext.replace('%N', callsign)
-        cnktext = cnktext.replace('%?', tmp)                                                # prompts the connected station to report its name if it has not yet included in the list of names (NAMES.GP)
-        cnktext = cnktext.replace('%Y', MyCall)                                             # %y = One's own Call
-        cnktext = cnktext.replace('%K', str(chn))                                           # %k = channel number on which the text will be broadcast
-        cnktext = cnktext.replace('%T', time.strftime('%H:%M:%S'))                          # %t = T: current GP time in HH:MM:SS format, e.g. 10:41:32
-        cnktext = cnktext.replace('%D', time.strftime("%d/%m/%Y"))                          # %d = current date eg: 25.03.1991
-        # cnktext = cnktext.replace('%B', )                                                 # %b = Corresponds to the Bell Character (07h) we dont have this ?!
-        tmp = ''
-        if os.path.exists('txtfiles/news.txt'): tmp = 'There is news via //News'
-        cnktext = cnktext.replace('%I', tmp)                                                # %i = is there new news? News
-        cnktext = cnktext.replace('%Z', 'UTC' + datetime.now().astimezone().strftime("%z")) # %z = The Time Zone of the server
-        cnktext = cnktext.replace('%_', '\r')                                               # %_: ends the line and moves the cursor to a new line
-        cnktext = cnktext.replace('%>', 'to ' + MyCall + ' >')       # bit like a command prompt place holder at bottom of msg
-        sindex = cnktext.find('%O')
-        if sindex:
-            lines = readfile('origin.txt').splitlines()
-            myline = random.choice(lines)
-            cnktext = cnktext.replace('%O', myline)                                         # %o = Reads a Line from ORIGIN.GPI (Chosen at Random)
-        # cnktext = cnktext.replace('%%', '%')                                              # percent sign
+if os.path.exists(MHeardPath):
+    with open(MHeardPath, 'rb') as f:
+        MHeard = pickle.load(f)
 
-    cnktext = re.sub(r'(\r\n|\n|\r)', '\n', cnktext)                                        # lets make sure we only use \n as enter
-    cnktext = cnktext[:-1]
+def send_mh():
+    send_me = ''
+    tn = int(time.time())
+    listme = []
+    for k in MHeard:
+        v = MHeard[k]
+        send_me = ''
+        if (tn - v[3]) < 43200:
+            send_me += f' {k} ' + ' ' * (8 - len(k)) + v[0] + ' ' * (10 - len(v[0])) + v[1] + ' ' * (14 - len(v[1])) + ez_date(v[3]) + ' ago\n'
+            listme.append({'txt': send_me, 'time':v[3]})
+    listme = sorted(listme, key=lambda d: d['time'], reverse=True)
+    send_me = 'NL0MSK Heard-list\r Station  Sysop     Locator       Last\n' + '-' * 55 + '\n'
+    for k in listme:
+        send_me += k['txt']
+    send_me += '\nGenerated on ' + time.strftime("%d/%m/%Y") +' at ' + time.strftime('%H:%M:%S') + ' Local time\n'
+    return send_me
 
-
-    # Next part we need is tring to parts if string longer then 7f (127) bytes (characters)
-    while len(cnktext) > SendLengt:
-        tmp = cnktext[0:SendLengt]
-        cnktext = cnktext[SendLengt:]
-        print('*' * 80)
-        print(tmp) # sendqueue.append([chn,cnktext])
-    #do we have left over?
-    if len(cnktext) != 0:
-        print('*' * 80)
-        print(cnktext) # sendqueue.append([chn,cnktext])
+def ez_date(d):
+    ts = math.floor(int(time.time()) - d)
+    if ts > 31536000:
+        temp = int(round(ts / 31536000, 0))
+        val = f"{temp} year{'s' if temp > 1 else ''}"
+    elif ts > 2419200:
+        temp = int(round(ts / 2419200, 0))
+        val = f"{temp} month{'s' if temp > 1 else ''}"
+    elif ts > 604800:
+        temp = int(round(ts / 604800, 0))
+        val = f"{temp} week{'s' if temp > 1 else ''}"
+    elif ts > 86400:
+        temp = int(round(ts / 86400, 0))
+        val = f"{temp} day{'s' if temp > 1 else ''}"
+    elif ts > 3600:
+        temp = int(round(ts / 3600, 0))
+        val = f"{temp} hour{'s' if temp > 1 else ''}"
+    elif ts > 60:
+        temp = int(round(ts / 60, 0))
+        val = f"{temp} minute{'s' if temp > 1 else ''}"
+    else:
+        temp = int(ts)
+        val = "a few second's"
+    return val
 
 
-textchunk(readfile('ctext.txt'),'1','NL1MSK')
-print ('*' * 80)
+wssend = bytearray()
+tmp = send_mh()
+wssend.extend(map(ord, tmp))
+
+
+wssend = wssend.decode('ascii', 'xmlcharrefreplace')
+
+print(wssend)
+

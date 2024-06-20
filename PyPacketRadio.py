@@ -451,9 +451,13 @@ def logheard(call, cmd, info):
     tnow = int(time.time())
     # 'callsign' = ['name','jo locator if known',first heard,last heard,heard count,first connect, last connect, connect count];
     #                  0              1              2           3           4           5             6             7
-    testcallsign = re.search('[\\d]{0,1}[A-Z]{1,2}\\d([A-Z]{1,4}|\\d{3,3}|\\d{1,3}[A-Z])[A-Z]{0,5}', call.upper())
-    if testcallsign:
-        call = testcallsign.group(0)
+    sindex = call.find('-')
+    if sindex > 1:
+        call = call[:sindex]
+
+    # testcallsign = re.search('[\\d]{0,1}[A-Z]{1,2}\\d([A-Z]{1,4}|\\d{3,3}|\\d{1,3}[A-Z])[A-Z]{0,5}', call.upper())
+    if len(call) < 7:
+        # call = testcallsign.group(0)
         if cmd == 5:
             if call in MHeard:
                 MHeard[call][3] = tnow
@@ -630,6 +634,9 @@ async def go_serial():
                 # How in *** mind can a serial read return absolutly noting....
                 if data_hex == '': data_hex = '0000'
 
+                data_decode = codecs.decode(data, 'cp850')
+                data_decode = re.sub(r'[^\x00-\x7F]+','', data_decode)
+
                 data_int = int(data_hex[2:4].upper(), 16)
                 namechan = '[Monitor]'
                 if chan_i != 0:
@@ -641,17 +648,15 @@ async def go_serial():
                 elif data_int == 1:
                     # Success, message follows (end with 00)
                     print('[ DEBUG ] ' + data_hex)
-                    data_decode = (codecs.decode(data, 'cp850')[1:])
                     print(namechan + " [1] \33[1;32m" + data_decode + "\33[0m")
                     await sendmsg(chan_i,'cmd1',"OK: " + data_decode)
                 elif data_int == 2:
                     # Failure, message follows
-                    data_decode = (codecs.decode(data, 'cp850')[2:])
                     print(namechan + " [2] \33[1;31m" + data_decode + "\33[0m")
                     await sendmsg(chan_i,'cmd2',"Error: " + data_decode)
                 elif data_int == 3:
                     # Link status
-                    data_decode = (codecs.decode(data, 'cp850')[2:][:-1])
+                    data_decode = data_decode[2:-1]
                     if 'DISCONNECTED' in data_decode:
                         # Channel chan_i got disconected
                         ACTCHANNELS[chan_i][1] = 'CHANNEL NOT CONNECTED'
@@ -666,10 +671,12 @@ async def go_serial():
                             ctext_file = 'ctext-' + remote_station + '.txt'
                             if os.path.isfile(MyPath + ctext_file):
                                 # We got a personal ctext send it...
-                                textchunk(readfile(ctext_file),chan_i,remote_station)
+                                sendtext = readfile(ctext_file)
+                                await textchunk(sendtext,chan_i,remote_station)
                             elif os.path.isfile(MyPath + 'ctext.txt'):
                                 # Send default ctext.txt
-                                textchunk(readfile('ctext.txt'),chan_i,remote_station)
+                                sendtext = readfile('ctext.txt')
+                                await textchunk(sendtext,chan_i,remote_station)
                             else:
                                 print('[ DEBUG ] No ctext.txt file in txtfiles folder!')
                         ACTCHANNELS[chan_i][1] = remote_station
@@ -680,21 +687,15 @@ async def go_serial():
                     await sendmsg(chan_i,'chat',data_decode)
                 elif data_int == 4:
                     # Monitor header/no info
-                    data_decode = (codecs.decode(data, 'cp850')[2:])
-
+                    data_decode = data_decode[2:-1]
                     callsign = data_decode.split(" ")[1]
-                    sindex = callsign.find('-')
-                    if sindex > 1:
-                        callsign = callsign[:sindex]
                     logheard(callsign, 5, '')
-
                     print(namechan + " \33[1;37m" + data_decode + "\33[0m")
-                    await sendmsg(chan_i,'cmd4',data_decode[:-1])
+                    await sendmsg(chan_i,'cmd4',data_decode)
                 elif data_int == 5:
                     # Monitor header/info
-                    data_decode = (codecs.decode(data, 'cp850')[2:])
-
                     #need check mheard if new or not and appent to msg *NEW*
+                    data_decode = data_decode[2:-1]
                     callsign = data_decode.split(" ")[1]
                     sindex = callsign.find('-')
                     if sindex > 1:
@@ -706,12 +707,11 @@ async def go_serial():
 
                     logheard(callsign, 5, '')
                     print(namechan + " \33[1;37m" + data_decode + heardnew + "\33[0m")
-                    await sendmsg(chan_i,'cmd5',data_decode[:-1] + heardnew)
+                    await sendmsg(chan_i,'cmd5',data_decode + heardnew)
                     heardnew = callsign
                 elif data_int == 6:
                     # Monitor information
-                    data_decode = (codecs.decode(data, 'cp850')[3:-1])
-                    data_out = data_decode.splitlines()
+                    data_out = data_decode[3:].splitlines()
                     sendtext = ''
                     _print('\33[1;36m', end='')
                     for lines in data_out:
@@ -719,7 +719,7 @@ async def go_serial():
                         sendtext += lines + '\r'
                     _print('\33[0m', end='')
 
-                    sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext[:-1])
+                    sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext)
                     sendtext = sendtext.replace('\"','&quot;')
                     await sendmsg(chan_i,'warn',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
 
@@ -753,8 +753,7 @@ async def go_serial():
                 elif data_int == 7:
                     # Connected information
                     # This should not be on monitor
-                    data_decode = (codecs.decode(data, 'cp850')[3:])
-                    data_out = data_decode.splitlines()
+                    data_out = data_decode[3:].splitlines()
                     numlines = 0
                     _print('\33[1;30m', end='')
                     sendtext = ''
@@ -763,15 +762,16 @@ async def go_serial():
                         sendtext += lines + '\r'
                         numlines += 1
                     _print('\33[0m', end='')
-                    sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext[:-1])
+                    sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext)
                     sendtext = sendtext.replace('\"','&quot;')
                     await sendmsg(chan_i,'chat',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
 
                     # deal weith incomming // commands. 
                     if '//' in sendtext and numlines == 1 and ACTCHANNELS[chan_i][1] != 'CHANNEL NOT CONNECTED':
-                        menuhandle(chan_i, ACTCHANNELS[chan_i][1], sendtext)
+                        await menuhandle(chan_i, ACTCHANNELS[chan_i][1], sendtext)
                 else:
                     print('[ DEBUG ]\33[0;33m Stage Get CMD Unknown : "' + data_hex + '"')
+                    _print((' ' * 21) + data_decode)
                     # pass
             x += 1
         else:
@@ -780,12 +780,13 @@ async def go_serial():
             if queing == 1:
                 chan_i = int(ACTIVECHAN.hex(), 16)
                 ser.write(ACTIVECHAN + b'\x01\x01\x40\x42')
-                tmp = ser.readline()[2:-1].decode()
+                tmp = (codecs.decode(ser.readline()[2:-1], 'cp850'))
                 await sendmsg(chan_i,'cmd1','@B:' + tmp)
                 await asyncio.sleep(pdelay)
             elif queing == 2:
                 ser.write(ACTIVECHAN + b'\x01\x00\x4C')
-                tmp = ser.readline()[2:-1].decode()
+                # tmp = ser.readline()[2:-1].decode()
+                tmp = (codecs.decode(ser.readline()[2:-1], 'cp850'))
                 await sendmsg(chan_i,'cmd1','L:' + tmp)
                 tmp = int(psutil.Process(os.getpid()).memory_info().rss)
                 await sendmsg(chan_i,'cmd1','@MEM:' + str(tmp))
@@ -820,46 +821,44 @@ async def go_serial():
                     sendbuffs = 0
 
 # Handle // Commands...
-def menuhandle(chan, call, cmdtxt):
+async def menuhandle(chan, call, cmdtxt):
     reqcmd = cmdtxt[2:3].upper()
+    sendtext = ''
     if   reqcmd == 'H':
         # //HELP send ./txtfiles/help.txt
-        textchunk(readfile('help.txt'),chan,call)
+        sendtext = readfile('help.txt')
     elif reqcmd == 'M':
         # send mHeard info...
-        textchunk('Heard Station log not yet implemented.',chan,str(call))
+        sendtext = send_mh()
     elif reqcmd == 'C':
         # //CSTAT Show all active connections
         # //C <call> ?? connect to a call ?!
         if cmdtxt[2:4].upper() == 'CS':
-            textchunk('Channel Status not yet implemented.',chan,str(call))
+            sendtext = 'Channel Status not yet implemented.'
         else:
-            textchunk('Connect to via // not yet implemented.',chan,str(call))
+            sendtext = 'Connect to via // not yet implemented.'
     elif reqcmd == 'E':
         # //Echo
         tmp = ''
         if cmdtxt[2:6].upper() == 'ECHO': tmp = cmdtxt[7:]
         else: tmp = cmdtxt[4:]
-        textchunk(tmp,chan,str(call))
+        sendtext = tmp
     elif reqcmd == 'N':
         if cmdtxt[2:6].upper() == 'NAME':
             MHeard[str(call)][0] = cmdtxt[7:]
-            textchunk('Thank you ' + cmdtxt[7:] + ',recored your sysop name in database.',chan,str(call))            
+            sendtext = 'Thank you ' + cmdtxt[7:] + ',recored your sysop name in database.'
         else:
             # //NEWS send ./txtfiles/news.txt
-            textchunk(readfile('news.txt'),chan,str(call))
+            sendtext = readfile('news.txt')
     elif reqcmd == 'I':
         # //INFO send ./txtfiles/info.txt
-        textchunk(readfile('info.txt'),chan,str(call))
+        sendtext = readfile('info.txt')
     elif reqcmd == 'W':
         # //Weather send ./txtfiles/weather.txt (weer.txt)
-        textchunk(readfile('weer.txt'),chan,str(call))
+        sendtext = readfile('weer.txt')
     elif reqcmd == 'Q':
         # //QUIT Disconnect with mnessage 'Totziens maar weer!'
-        textchunk(readfile('qrt.txt'),chan,str(call))
-        all_bytes = send_tncC('D', chan)
-        ser.write(all_bytes)
-        tmp = ser.readline().decode()
+        sendtext = readfile('qrt.txt')
     elif reqcmd == 'D':                            
         # //DISC Disconnect
         all_bytes = send_tncC('D', chan)
@@ -867,12 +866,71 @@ def menuhandle(chan, call, cmdtxt):
         tmp = ser.readline().decode()
     elif reqcmd == 'V':
         # //VERSION Show version of software
-        textchunk(readfile('version.txt'),chan,str(call))
+        sendtext = readfile('version.txt')
+    elif reqcmd == 'P':
+        sendtext = 'Timing-Parameters info not yet implemented'
+        """
+        Timing-Parameters of %Y:
+
+        P-Persistance: 220      Slottime: 15
+        Frack: 349
+        T2-Timer: 150           T3-Timer: 30000
+        TXDelay: 30             MaxUnack: 3
+        """
     else:
         # send 'ehh what moet dat nu? // whaaa?'
-        textchunk('ehh what moet dat nu? // whaaa?',chan,str(call))
+        sendtext = 'ehh what moet dat nu? // whaaa?'
+
+    if len(sendtext) > 0:
+        await textchunk(sendtext,chan,str(call))
+        if reqcmd == 'Q':
+            all_bytes = send_tncC('D', chan)
+            ser.write(all_bytes)
+            tmp = ser.readline().decode()
+
+def send_mh():
+    send_me = ''
+    tn = int(time.time())
+    listme = []
+    for k in MHeard:
+        v = MHeard[k]
+        send_me = ''
+        if (tn - v[3]) < 43200:
+            send_me += f' {k} ' + ' ' * (8 - len(k)) + v[0] + ' ' * (10 - len(v[0])) + v[1] + ' ' * (14 - len(v[1])) + ez_date(v[3]) + ' ago\n'
+            listme.append({'txt': send_me, 'time':v[3]})
+    listme = sorted(listme, key=lambda d: d['time'], reverse=True)
+    send_me = 'Last 24 hours Heard-list\n Station  Sysop     Locator       Last\n' + '-' * 55 + '\n'
+    for k in listme:
+        send_me += k['txt']
+    send_me += '\nGenerated on ' + time.strftime("%d/%m/%Y") +' at ' + time.strftime('%H:%M:%S') + ' Local time\n'
+    return send_me
 
 #-------------------------------------------------------------- Side Functions ---------------------------------------------------------------------------
+
+def ez_date(d):
+    ts = math.floor(int(time.time()) - d)
+    if ts > 31536000:
+        temp = int(round(ts / 31536000, 0))
+        val = f"{temp} year{'s' if temp > 1 else ''}"
+    elif ts > 2419200:
+        temp = int(round(ts / 2419200, 0))
+        val = f"{temp} month{'s' if temp > 1 else ''}"
+    elif ts > 604800:
+        temp = int(round(ts / 604800, 0))
+        val = f"{temp} week{'s' if temp > 1 else ''}"
+    elif ts > 86400:
+        temp = int(round(ts / 86400, 0))
+        val = f"{temp} day{'s' if temp > 1 else ''}"
+    elif ts > 3600:
+        temp = int(round(ts / 3600, 0))
+        val = f"{temp} hour{'s' if temp > 1 else ''}"
+    elif ts > 60:
+        temp = int(round(ts / 60, 0))
+        val = f"{temp} minute{'s' if temp > 1 else ''}"
+    else:
+        temp = int(ts)
+        val = "a few second's"
+    return val
 
 def LatLon2qth(latitude, longitude):
     A = ord('A')
@@ -989,7 +1047,7 @@ def readfile(file):
             return contents
     return 'File `' + file + '` not found or empty.'
 
-def textchunk(cnktext , chn, call):
+async def textchunk(cnktext , chn, call):
     tmp = ''
     # Lets do some preg replacing to...
     if '%' in cnktext:
@@ -1023,15 +1081,19 @@ def textchunk(cnktext , chn, call):
         # cnktext = cnktext.replace('%%', '%')                                              # percent sign
 
     cnktext = re.sub(r'(\r\n|\n|\r)', '\r', cnktext)                                        # lets make sure we only use \n as enter
-    cnktext = cnktext.rstrip()
+    # cnktext = cnktext.rstrip()
     cnktext = cnktext + '\r'
+
+    wssend = re.sub(r'(\r\n|\n|\r)', '\n', cnktext[:-1])
+    wssend = wssend.replace('\"','&quot;')
+    await sendmsg(chn,'echo',str(wssend.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
+
     # Next part we need is tring to parts if string longer then 7f (127) bytes (characters)
-    if len(cnktext) > 253:
-        while len(cnktext) > 253:
-            tmp = cnktext[0:253]
-            cnktext = cnktext[253:]
+    if len(cnktext) > 164:
+        while len(cnktext) > 164:
+            tmp = cnktext[:164]
+            cnktext = cnktext[164:]
             # sendqueue.append([chn + 20,tmp])
-            print('[ DEBUG ] >>> ' + tmp)
             beacon = send_tnc(tmp, chn)
             ser.write(beacon)
             tmp = ser.readline().decode()
