@@ -441,7 +441,7 @@ ser.bytesize = serial.EIGHTBITS     # number of bits per bytes
 ser.parity = serial.PARITY_NONE     # set parity check: no parity
 ser.stopbits = serial.STOPBITS_ONE  # number of stop bits
 # ser.timeout = None                # block read
-ser.timeout = 0.05                  # non blocking read
+ser.timeout = 0.06                  # non blocking read
 ser.xonxoff = False                 # disable software flow control
 ser.rtscts = False                  # disable hardware (RTS/CTS) flow control
 ser.dsrdtr = False                  # disable hardware (DSR/DTR) flow control
@@ -635,7 +635,7 @@ async def go_serial():
                 if data_hex == '': data_hex = '0000'
 
                 data_decode = codecs.decode(data, 'cp850')
-                data_decode = re.sub(r'[^\x00-\x7F]+','', data_decode)
+                # data_decode = re.sub(r'[\x00-\x09\xfe-\xff]', '', data_decode)
 
                 data_int = int(data_hex[2:4].upper(), 16)
                 namechan = '[Monitor]'
@@ -656,7 +656,7 @@ async def go_serial():
                     await sendmsg(chan_i,'cmd2',"Error: " + data_decode)
                 elif data_int == 3:
                     # Link status
-                    data_decode = data_decode[2:-1]
+                    data_decode = data_decode #[2:-1]
                     if 'DISCONNECTED' in data_decode:
                         # Channel chan_i got disconected
                         ACTCHANNELS[chan_i][1] = 'CHANNEL NOT CONNECTED'
@@ -711,6 +711,8 @@ async def go_serial():
                     heardnew = callsign
                 elif data_int == 6:
                     # Monitor information
+                    if data_decode[-2:-1] == data_decode[-1:] and data_decode[-1:] == '\n':
+                        data_decode[:-1]
                     data_out = data_decode[3:].splitlines()
                     sendtext = ''
                     _print('\33[1;36m', end='')
@@ -752,7 +754,8 @@ async def go_serial():
                     heardnew = ''
                 elif data_int == 7:
                     # Connected information
-                    # This should not be on monitor
+                    if data_decode[-2:-1] == data_decode[-1:] and data_decode[-1:] == '\n':
+                        data_decode[:-1]
                     data_out = data_decode[3:].splitlines()
                     numlines = 0
                     _print('\33[1;30m', end='')
@@ -764,14 +767,26 @@ async def go_serial():
                     _print('\33[0m', end='')
                     sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext)
                     sendtext = sendtext.replace('\"','&quot;')
-                    await sendmsg(chan_i,'chat',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
+                    await sendmsg(chan_i,'warn',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
 
                     # deal weith incomming // commands. 
                     if '//' in sendtext and numlines == 1 and ACTCHANNELS[chan_i][1] != 'CHANNEL NOT CONNECTED':
                         await menuhandle(chan_i, ACTCHANNELS[chan_i][1], sendtext)
                 else:
+                    data_decode = re.sub(r'[\x00-\x09\xfe-\xff]', '', data_decode) # lets get rid of non printable shiz
+                    data_out = data_decode.splitlines()
                     print('[ DEBUG ]\33[0;33m Stage Get CMD Unknown : "' + data_hex + '"')
-                    _print((' ' * 21) + data_decode)
+                    _print('\33[1;30m', end='')
+                    sendtext = ''
+                    numlines = 0
+                    for lines in data_out:
+                        _print((' ' * 21) + data_decode)
+                        sendtext += lines + '\r'
+                        numlines += 1
+                    _print('\33[0m', end='')
+                    sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext)
+                    sendtext = sendtext.replace('\"','&quot;')
+                    await sendmsg(chan_i,'chat',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
                     # pass
             x += 1
         else:
@@ -868,15 +883,25 @@ async def menuhandle(chan, call, cmdtxt):
         # //VERSION Show version of software
         sendtext = readfile('version.txt')
     elif reqcmd == 'P':
-        sendtext = 'Timing-Parameters info not yet implemented'
-        """
-        Timing-Parameters of %Y:
-
-        P-Persistance: 220      Slottime: 15
-        Frack: 349
-        T2-Timer: 150           T3-Timer: 30000
-        TXDelay: 30             MaxUnack: 3
-        """
+        # //P Show TNC Settings
+        sendtext = 'Timing-Parameters of %Y:\r\r'
+        pp = config.get('tncinit', '12')[2:]
+        pp += + ' ' * (9 - len(pp))
+        sendtext += 'P-Persistance: ' + pp
+        pp = config.get('tncinit', '10')[2:]
+        sendtext += 'Slottime: ' + pp + '\r'
+        pp = '350 ' # dont have F 350
+        sendtext += 'Frack: ' + pp + '\r'
+        pp = '150 ' # T2 Timer ?
+        pp += + ' ' * (14 - len(pp))
+        sendtext += 'T2-Timer: ' + pp
+        pp = '30000 ' # T3-Timer ?
+        sendtext += 'T3-Timer: ' + pp + '\r'
+        pp = config.get('tncinit', '11')[2:]
+        pp += + ' ' * (15 - len(pp))
+        sendtext += 'TXDelay: ' + pp
+        pp = config.get('tncinit', '9')[2:]
+        sendtext += 'MaxUnack: ' + pp + '\r'
     else:
         # send 'ehh what moet dat nu? // whaaa?'
         sendtext = 'ehh what moet dat nu? // whaaa?'
