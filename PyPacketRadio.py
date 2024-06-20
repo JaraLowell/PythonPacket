@@ -786,7 +786,7 @@ async def go_serial():
                     _print('\33[0m', end='')
                     sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext)
                     sendtext = sendtext.replace('\"','&quot;')
-                    await sendmsg(chan_i,'chat',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
+                    await sendmsg(0,'warn',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
                     # pass
             x += 1
         else:
