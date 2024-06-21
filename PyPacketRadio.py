@@ -173,6 +173,13 @@ async def mysocket(websocket, path):
                         # await sendmsg(int(message[1:]),'cmd3','C:' + tmp)
                         ACTCHANNELS[tmp2][1] = ser.readline()[2:-1].decode()
                         await sendmsg(tmp2,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
+            elif message[:1] == '^' and OnLora == False:
+                # We want to send a command!
+                ser.write(ACTIVECHAN + b'\x01' + num2byte(len(message[1:]) -1) + bytearray(message[1:], 'utf-8'))
+                data = ser.readline()
+                data_decode = codecs.decode(data, 'cp850')
+                data_decode = re.sub(r'[\x00-\x09\xfe-\xff]', '', data_decode) # lets get rid of non printable shiz
+                print('[ DEBUG ]\33[0;33m Cmd Send Responce : "' + data_decode + '"')
             else:
                 print("[Network] " + message + "\33[0m")
                 # need know what channel we actually sennding on . . .
@@ -228,10 +235,18 @@ async def main():
     # Need add active channel here
     while True:
         text = await ainput("")
-        await sendmsg(0,'echo',text[:-1])
+        message = text[:-1]
+        await sendmsg(0,'echo',message)
         _print('\033[1A' + '\033[K', end='')
-        print("[Console] " + text[:-1])
-        sendqueue.append([0,text[:-1]])
+        print("[Console] " + message)
+        if message[:1] == '^' and OnLora == False:
+            ser.write(ACTIVECHAN + b'\x01' + num2byte(len(message[1:]) -1) + bytearray(message[1:], 'utf-8'))
+            data = ser.readline()
+            data_decode = codecs.decode(data, 'cp850')
+            data_decode = re.sub(r'[\x00-\x09\xfe-\xff]', '', data_decode) # lets get rid of non printable shiz
+            print('[ DEBUG ]\33[0;33m Cmd Send Responce : "' + data_decode + '"')
+        else:
+            sendqueue.append([0,message])
 
 async def ainput(string: str) -> str:
     await asyncio.get_event_loop().run_in_executor(
@@ -501,7 +516,9 @@ def init_tncinWa8ded():
     ser.readline()
     ser.write(b'\x4a\x48\x4f\x53\x54\x31\x0d')
     print('\33[0;33mSetting TNC in hostmode...\33[0m')
-    print("[ DEBUG ] " + ser.readline().decode())
+    print("[ DEBUG ] \33[0;32m" + ser.readline().decode()  + '\33[0m')
+    ser.write(b'\x00\x01\x00\x56')
+    print("[ DEBUG ] \33[0;32m" + ser.readline().decode()[2:] + '\33[0m')
 
 def send_init_tnc(command, chan, cmd):
     length_command = len(command) - 1
@@ -543,6 +560,7 @@ def send_tncC(command, channel):
 def init_tncConfig():
     global ACTCHANNELS
     ACTCHANNELS = {}
+    print('\33[0;33mSetting TNC Configs...\33[0m')
     x = 0
     for x in range(1, 18):
         if x == 2:
