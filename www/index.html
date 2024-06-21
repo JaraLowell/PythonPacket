@@ -31,6 +31,17 @@
     <div class="warn-title"><h5>&nbsp;Error</h5></div>
     <div class="theerror">Connection Lost to server</div>
   </div>
+  <div class="connectbox" style="display:none;">
+    <div class="conn-title">&nbsp;Connect To</div>
+    <div class="conn-text">
+      <input class="action-box-input2" type="text" placeholder="NOCALL" name="Callsign" list="callsellects">
+        <datalist id="callsellects">
+        </datalist>
+      <br>
+      <button class="action-box-submit2" type="submit" onclick="HandleConnect()" style="width:100px">Connect</button>
+      <button class="action-box-submit2" type="submit" onclick="CancelMessage()" style="width:100px">Cancel</button>
+    </div>
+  </div>
   <div class="chat">
     <div ckass="channels">
       <div class="info">
@@ -154,7 +165,14 @@
             });
         }
     };
-
+    window.HandleConnect = function() {
+        msgText = $(".action-box-input2").val();
+        $('.connectbox').hide();
+        socket.send('^C ' + msgText);
+    }
+    window.CancelMessage = function() {
+        $('.connectbox').hide();
+    }
     window.insertMessage = function() {
         var msg, msgText;
         msgText = $(".action-box-input").val();
@@ -525,22 +543,22 @@
             updateScrollbar();
         } else {
             // console.log(event.target.id);
-            $('.chansel').removeClass('tnc-active').addClass('tnc-default');
-            $(event.target).addClass('tnc-active');
+            if(event.target.id != 'mnu1') {
+                $('.chansel').removeClass('tnc-active').addClass('tnc-default');
+                $(event.target).addClass('tnc-active');
+            }
 
             if(event.target.id == 'mnu6') {
                 $("#chat-input").hide();
                 $(".map").show();
                 $(".messages").hide();
                 $(".tableheard").hide();
-            }
-            if(event.target.id == 'mnu5') {
+            } else if(event.target.id == 'mnu5') {
                 $("#chat-input").hide();
                 $(".tableheard").show();
                 $(".messages").hide();
                 $(".map").hide();
-            }
-            if(event.target.id == 'mnu4') {
+            } else if(event.target.id == 'mnu4') {
                 if(activechannel != 0) {
                     for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = 'none';
                     activechannel = 0;
@@ -558,6 +576,8 @@
                 $('#LoraMH').hide();
                 $('#RadioMH').show();
                 updateScrollbar();
+            } else if(event.target.id == 'mnu1') {
+                $('.connectbox').show();
             }
         }
     }
@@ -594,6 +614,7 @@
             var tn = Math.floor(new Date().getTime() / 1000);
             var date;
             var addon;
+            var selectbox = ''
             for(var k in mheard) {
                 sortable.push({'name': k, 'time': mheard[k][3]});
                 if(mheard[k][1] != '') obj[k] = mheard[k][1];
@@ -606,6 +627,7 @@
                 if((tn - sortable[k].time) < 43200) {
                     output += '<div id="infomsg">' + tmpname + '<div class="tmz">' + ezDate(sortable[k].time) + '</div></div>';
                     if((tn - sortable[k].time) < 3600) addon = ' style="background: #002c0061;"'; else addon = '';
+                    selectbox += '\n          <option value="' + tmpname + '">\n'
                 }
 
                 tablerow += '<tr'+addon+'><td><h3>' + tmpname + '</h3></td>';
@@ -629,6 +651,8 @@
             tablerow += '</table>';
             // $(".mheard-content").html(tablerow);
             $('#mCSB_1_container').html(tablerow);
+
+            $('#callsellects').html(selectbox)
 
             // Lets send it to iframe window as well to add to map
             window.document.getElementById("mapiframe").contentWindow.postMessage(JSON.stringify(Object.assign(obj,Loraobj)), '*');
