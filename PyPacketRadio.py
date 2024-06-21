@@ -21,6 +21,7 @@ import codecs
 import functools
 import json
 from http import HTTPStatus
+from html import escape
 import random
 
 # Next two are for the radio side of things
@@ -670,8 +671,8 @@ async def go_serial():
                 elif data_int == 1:
                     # Success, message follows (end with 00)
                     print('[ DEBUG ] ' + data_hex)
-                    print(namechan + " [1] \33[1;32m" + data_decode + "\33[0m")
-                    await sendmsg(chan_i,'cmd1',"OK: " + data_decode)
+                    print(namechan + " [1] \33[1;32m" + data_decode[2:] + "\33[0m")
+                    await sendmsg(chan_i,'cmd1',"OK: " + data_decode[2:])
                 elif data_int == 2:
                     # Failure, message follows
                     print(namechan + " [2] \33[1;31m" + data_decode + "\33[0m")
@@ -733,7 +734,7 @@ async def go_serial():
                 elif data_int == 6:
                     # Monitor information
                     if data_decode[-2:-1] == data_decode[-1:] and data_decode[-1:] == '\n':
-                        data_decode[:-1]
+                        data_decode = data_decode[:-1]
                     data_out = data_decode[3:].splitlines()
                     sendtext = ''
                     _print('\33[1;36m', end='')
@@ -742,9 +743,7 @@ async def go_serial():
                         sendtext += lines + '\r'
                     _print('\33[0m', end='')
 
-                    sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext)
-                    sendtext = sendtext.replace('\"','&quot;')
-                    await sendmsg(chan_i,'warn',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
+                    await sendmsg(chan_i,'warn',replacesheet(sendtext))
 
                     locator = re.findall(r'[A-R]{2}[0-9]{2}[A-Z]{2}[0-9]{2}', data_decode.upper())
                     if not locator:
@@ -786,15 +785,14 @@ async def go_serial():
                         sendtext += lines + '\r'
                         numlines += 1
                     _print('\33[0m', end='')
-                    sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext)
-                    sendtext = sendtext.replace('\"','&quot;')
-                    await sendmsg(chan_i,'warn',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
+
+                    await sendmsg(chan_i,'warn',replacesheet(sendtext))
 
                     # deal weith incomming // commands. 
                     if '//' in sendtext and numlines == 1 and ACTCHANNELS[chan_i][1] != 'CHANNEL NOT CONNECTED':
                         await menuhandle(chan_i, ACTCHANNELS[chan_i][1], sendtext)
                 else:
-                    data_decode = re.sub(r'[\x00-\x09\xfe-\xff]', '', data_decode) # lets get rid of non printable shiz
+                    data_decode = re.sub(r'[\x00-\x31\xfe-\xff]', '', data_decode) # lets get rid of non printable shiz
                     data_out = data_decode.splitlines()
                     print('[ DEBUG ]\33[0;33m Stage Get CMD Unknown : "' + data_hex + '"')
                     _print('\33[1;30m', end='')
@@ -805,9 +803,7 @@ async def go_serial():
                         sendtext += lines + '\r'
                         numlines += 1
                     _print('\33[0m', end='')
-                    sendtext = re.sub(r'(\r\n|\n|\r)', '\n', sendtext)
-                    sendtext = sendtext.replace('\"','&quot;')
-                    await sendmsg(0,'warn',str(sendtext.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1])
+                    await sendmsg(0,'warn',replacesheet(sendtext))
                     # pass
             x += 1
         else:
@@ -855,6 +851,17 @@ async def go_serial():
                 else:
                     await sendmsg(100,'loraHeard',json.dumps(LoraDB).replace('\"','\\\"'))
                     sendbuffs = 0
+
+def replacesheet(text):
+    # Replace all enters to be \n
+    text = re.sub(r'(\r\n|\n|\r)', '\n', text)
+    # Lets escape weird characters
+    text = escape(text)[:-1]
+    # kay still messed up characters ? lets xml char it
+    text = str(text.encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+    # seriously x00 ~ x29 or likes still in there
+    text = re.sub(r'\\x[0-9][0-9]', '&#65533;',text)
+    return text
 
 # Handle // Commands...
 async def menuhandle(chan, call, cmdtxt):
