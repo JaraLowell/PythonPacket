@@ -329,84 +329,86 @@ def on_meshtastic_message(packet, loop=None):
     donoting = True
     if "decoded" in packet:
         data = packet["decoded"]
-        text_from  = packet["fromId"][1:]
-        text_mqtt = ''
-        text_msgs = ''
-        fromraw = text_from
-        if text_from in LoraDB:
-            if LoraDB[text_from][1] != '':
-                text_from = LoraDB[text_from][1] + " (" + LoraDB[text_from][2] + ")"
-        else:
-            updatesnodes()
+        text_from = ''
+        if "fromId" in packet:
+            text_from  = packet["fromId"][1:]
+            text_mqtt = ''
+            text_msgs = ''
+            fromraw = text_from
+            if text_from in LoraDB:
+                if LoraDB[text_from][1] != '':
+                    text_from = LoraDB[text_from][1] + " (" + LoraDB[text_from][2] + ")"
+            else:
+                updatesnodes()
 
-        if "viaMqtt" in packet:
-            text_mqtt = ' via mqtt'
+            if "viaMqtt" in packet:
+                text_mqtt = ' via mqtt'
 
-        # Lets Work the Msgs
-        if data["portnum"] == "TELEMETRY_APP":
-            if "deviceMetrics" in  data["telemetry"]:
-                text = data["telemetry"]["deviceMetrics"]
-                if "voltage" in text and "batteryLevel" in text:
-                    sendqueue.append([9,'deviceMetrics:{\\"id\\":\\"' + packet["fromId"][1:] + '\\",\\"v\\":' + str(round(text["voltage"],2)) + ',\\"b\\":' + str(text["batteryLevel"]) + '}'])
-            donoting = True
-        if data["portnum"] == "NEIGHBORINFO_APP":
-            donoting = True
-        if data["portnum"] == "ROUTING_APP":
-            donoting = True
-        if data["portnum"] == "POSITION_APP":
-            text = data["position"]
-            if "altitude" in text:
-                text_msgs = "Position beacon: "
-                if "latitude" in text:
-                    text_msgs += "latitude " + str(round(text["latitude"],4)) + " "
-                if "longitude" in text:
-                    text_msgs += "longitude " + str(round(text["longitude"],4)) + " "
-                    qth = LatLon2qth(round(text["latitude"],6), round(text["longitude"],6))
-                    # text_msgs += "(" + qth + ") "
-                if "altitude" in text:
-                    text_msgs += "altitude " + str(text["altitude"]) + "meter"
-
-                # if not is_hour_between(1, 10) and "viaMqtt" not in packet:
-                #     sendqueue.append([0,'[LoraNET] Position beacon from ' + text_from + ' QTH ' + qth[:-2]])
-                text_raws = text_msgs
-                # sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_msgs])
-                logLora(packet["fromId"][1:], ['POSITION_APP', text["latitude"], text["longitude"], text["altitude"]])
-                # ["latitudeI"] ["longitude"] ["altitude"] ["time"] ["precisionBits"]
+            # Lets Work the Msgs
+            if data["portnum"] == "TELEMETRY_APP":
+                if "deviceMetrics" in  data["telemetry"]:
+                    text = data["telemetry"]["deviceMetrics"]
+                    if "voltage" in text and "batteryLevel" in text:
+                        sendqueue.append([9,'deviceMetrics:{\\"id\\":\\"' + packet["fromId"][1:] + '\\",\\"v\\":' + str(round(text["voltage"],2)) + ',\\"b\\":' + str(text["batteryLevel"]) + '}'])
                 donoting = True
-        if data["portnum"] == "NODEINFO_APP":
-            text = data["user"]
-            if "shortName" in text:
-                lora_sn = str(text["shortName"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
-                lora_ln = str(text["longName"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
-                lora_mc = text["macaddr"]
-                lora_mo = text["hwModel"]
-                logLora(packet["fromId"][1:], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
-                text_raws = "NodeInfo beacon using hardware " + lora_mo
-                text_from = LoraDB[packet["fromId"][1:]][1] + " (" + LoraDB[packet["fromId"][1:]][2] + ")"
-                sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_raws])
+            if data["portnum"] == "NEIGHBORINFO_APP":
+                donoting = True
+            if data["portnum"] == "ROUTING_APP":
+                donoting = True
+            if data["portnum"] == "POSITION_APP":
+                text = data["position"]
+                if "altitude" in text:
+                    text_msgs = "Position beacon: "
+                    if "latitude" in text:
+                        text_msgs += "latitude " + str(round(text["latitude"],4)) + " "
+                    if "longitude" in text:
+                        text_msgs += "longitude " + str(round(text["longitude"],4)) + " "
+                        qth = LatLon2qth(round(text["latitude"],6), round(text["longitude"],6))
+                        # text_msgs += "(" + qth + ") "
+                    if "altitude" in text:
+                        text_msgs += "altitude " + str(text["altitude"]) + "meter"
+
+                    # if not is_hour_between(1, 10) and "viaMqtt" not in packet:
+                    #     sendqueue.append([0,'[LoraNET] Position beacon from ' + text_from + ' QTH ' + qth[:-2]])
+                    text_raws = text_msgs
+                    # sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_msgs])
+                    logLora(packet["fromId"][1:], ['POSITION_APP', text["latitude"], text["longitude"], text["altitude"]])
+                    # ["latitudeI"] ["longitude"] ["altitude"] ["time"] ["precisionBits"]
+                    donoting = True
+            if data["portnum"] == "NODEINFO_APP":
+                text = data["user"]
+                if "shortName" in text:
+                    lora_sn = str(text["shortName"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+                    lora_ln = str(text["longName"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+                    lora_mc = text["macaddr"]
+                    lora_mo = text["hwModel"]
+                    logLora(packet["fromId"][1:], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
+                    text_raws = "NodeInfo beacon using hardware " + lora_mo
+                    text_from = LoraDB[packet["fromId"][1:]][1] + " (" + LoraDB[packet["fromId"][1:]][2] + ")"
+                    sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_raws])
+                    donoting = False
+            if data["portnum"] == "TEXT_MESSAGE_APP" and "text" in data:
+                text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+                text_raws = data["text"]
+                text_chns = '0'
+                if "channel" in packet:
+                    text_chns = str(packet["channel"])
+                sendqueue.append([9,text_from + text_mqtt + ' on Channel ' + text_chns + '&#10;' + text_msgs])
+                sendqueue.append([0,'[LoraNET] [Ch ' + text_chns + '] ' + text_from + text_mqtt + ': ' + text_msgs])
                 donoting = False
-        if data["portnum"] == "TEXT_MESSAGE_APP" and "text" in data:
-            text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
-            text_raws = data["text"]
-            text_chns = '0'
-            if "channel" in packet:
-                text_chns = str(packet["channel"])
-            sendqueue.append([9,text_from + text_mqtt + ' on Channel ' + text_chns + '&#10;' + text_msgs])
-            sendqueue.append([0,'[LoraNET] [Ch ' + text_chns + '] ' + text_from + text_mqtt + ': ' + text_msgs])
-            donoting = False
 
-        if donoting == True:
-            logLora(packet["fromId"][1:],['UPDATETIME'])
+            if donoting == True:
+                logLora(packet["fromId"][1:],['UPDATETIME'])
 
-        if "viaMqtt" in packet:
-            LoraDB[fromraw][10] = ' via mqtt'
-        else:
-            LoraDB[fromraw][10] = ''
+            if "viaMqtt" in packet:
+                LoraDB[fromraw][10] = ' via mqtt'
+            else:
+                LoraDB[fromraw][10] = ''
 
-        if donoting == False and text_raws != '' and lora_lastmsg != text_raws:
-            lora_lastmsg = text_raws
-            print("[LoraNet]\33[0;37m mqtt " + text_from + LoraDB[fromraw][10] + "\33[0m")
-            _print('\33[0;32m' + (' ' * 21) + text_raws + '\33[0m')
+            if donoting == False and text_raws != '' and lora_lastmsg != text_raws:
+                lora_lastmsg = text_raws
+                print("[LoraNet]\33[0;37m mqtt " + text_from + LoraDB[fromraw][10] + "\33[0m")
+                _print('\33[0;32m' + (' ' * 21) + text_raws + '\33[0m')
 
 def updatesnodes():
     info = ''
