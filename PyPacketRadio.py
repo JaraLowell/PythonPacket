@@ -324,7 +324,7 @@ def logLora(nodeID, info):
 
 # import yaml
 def on_meshtastic_message(packet, loop=None):
-    # print(yaml.dump(meshtastic_client.nodes))
+    # print(yaml.dump(packet))
     global lora_lastmsg
     donoting = True
     if "decoded" in packet:
@@ -390,11 +390,15 @@ def on_meshtastic_message(packet, loop=None):
             if data["portnum"] == "TEXT_MESSAGE_APP" and "text" in data:
                 text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
                 text_raws = data["text"]
-                text_chns = '0'
+                text_chns = 'Private'
+                if "toId" in packet:
+                    if packet["toId"] == '^all':
+                        text_chns = 'Primary'
                 if "channel" in packet:
                     text_chns = str(packet["channel"])
+                if text_chns != 'Private':
+                    sendqueue.append([0,'[LoraNET] [Ch ' + text_chns + '] ' + text_from + text_mqtt + ': ' + text_msgs])
                 sendqueue.append([9,text_from + text_mqtt + ' on Channel ' + text_chns + '&#10;' + text_msgs])
-                sendqueue.append([0,'[LoraNET] [Ch ' + text_chns + '] ' + text_from + text_mqtt + ': ' + text_msgs])
                 donoting = False
 
             if donoting == True:
