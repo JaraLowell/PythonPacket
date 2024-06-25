@@ -416,21 +416,30 @@ def on_meshtastic_message(packet, loop=None):
 
 def updatesnodes():
     info = ''
+    itmp = 0
     for nodes, info in meshtastic_client.nodes.items():
         nodeID = str(info['user']['id'])[1:]
         nodeLast = 0
+        itmp = itmp + 1
         if "lastHeard" in info and info["lastHeard"] is not None:
             nodeLast = info['lastHeard']
+
         if nodeID in LoraDB:
             LoraDB[nodeID][0] = nodeLast
         else:
             LoraDB[nodeID] = [nodeLast, '', '', '', '', '', '', '', nodeLast, '', '', '']
 
-        if "user" in info:                
-            LoraDB[nodeID][1] = str(info['user']['shortName'])
-            LoraDB[nodeID][2] = str(info['user']['longName'])
-            LoraDB[nodeID][6] = str(info['user']['macaddr'])
-            LoraDB[nodeID][7] = str(info['user']['hwModel'])
+        # Apparently we can actually recieve an empty node ID with no user info o.O
+        if "user" in info:
+            if "shortName" in info['user']:
+                LoraDB[nodeID][1] = str(info['user']['shortName'])
+            if "longName" in info['user']:
+                LoraDB[nodeID][2] = str(info['user']['longName'])
+            if "macaddr" in info['user']:
+                LoraDB[nodeID][6] = str(info['user']['macaddr'])
+            if "hwModel" in info['user']:
+                LoraDB[nodeID][7] = str(info['user']['hwModel'])
+
         if "position" in info:
             tmp = info['position']
             if "latitude" in tmp and "longitude" in tmp:
@@ -439,8 +448,16 @@ def updatesnodes():
                 LoraDB[nodeID][9] = LatLon2qth(tmp['latitude'],tmp['longitude'])
             if "altitude" in tmp:
                 LoraDB[nodeID][5] = tmp['altitude']
+        else:
+            # Lets dump it in to the ocean seing it has no coordinates, posible space fairing ? lol
+            if LoraDB[nodeID][3] == '':
+                LoraDB[nodeID][3] = 52.453941 + (itmp * 10)
+            if LoraDB[nodeID][4] == '':
+                LoraDB[nodeID][3] = 3.735352 
+
         if "viaMqtt" in info:
             LoraDB[nodeID][10] = ' via mqtt'
+
         if "snr" in info and info['snr'] is not None:
             LoraDB[nodeID][11] = str(info['snr']) + 'dB'
 

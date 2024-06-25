@@ -67,6 +67,7 @@
         <table id="montable"><tr><td rowspan="2" style="width:21%;"><h2> Monitor</h2></td><td style="width:26%;">Monitor Mode : <span id="infmon"></span></td><td style="width:28%;">Buffer : <span id="infbuf"></span> (App <span id="imem"></span>MB)</td><td rowspan="2" style="width: 200px;"><h2>mHeard</h2></td></tr><tr><td>Packets not yet displayed : <span id="infpacn"></span></td><td>Global Mycall : <span id="infmyc"></span></td></tr></table>
         <table id="chntable" style="display:none"><tr><td rowspan="2" id="chnnum" style="width:21%;"><h2>Channel</h2></td><td>My Call : <span id="chnmyc"></span></td><td colspan="2">Status : <span id="chn_f"></span></td><td>Buffer : <span id="chnbuf"></span> (App <span id="cmem"></span>MB)</td></tr><tr><td>Not displayed : <span id="chn_b"></span></td><td>Not send : <span id="chn_c"></span></td><td>Tries : <span id="chn_e"></span></td><td>Unacknowledged : <span id="chn_d"></span></td></tr></table>
         <table id="other" style="display:none"><tr><td rowspan="2" id="othnum" style="width:21%;"><h2>Other</h2></td><td style="width:26%;"><span id="othmon"></span></td><td style="width:28%;"><span id="othbuf"></span><span id="othmem"></span></td><td rowspan="2" style="width: 200px;"><h2>mHeard</h2></td></tr><tr><td><span id="othpacn"></span></td><td><span id="othmyc"></span></td></tr></table>
+        <table id="text_window" style="display:none"><tr><td id="txwindow_tx" style="text-align: center;"><h2>Yada</h2></td></tr></table>
     </div>
     <div class="messages">
       <div class="messages-content"></div>
@@ -547,17 +548,27 @@
                 $('.chansel').removeClass('tnc-active').addClass('tnc-default');
                 $(event.target).addClass('tnc-active');
             }
-
+            $('#text_window').hide();
             if(event.target.id == 'mnu6') {
                 $("#chat-input").hide();
                 $(".map").show();
                 $(".messages").hide();
                 $(".tableheard").hide();
+                $('#other').hide(); 
+                $('#montable').hide();
+                $('#chntable').hide();
+                $("#txwindow_tx").html('<h2>Stations Heard Map</h2>')
+                $('#text_window').show();
             } else if(event.target.id == 'mnu5') {
                 $("#chat-input").hide();
                 $(".tableheard").show();
                 $(".messages").hide();
                 $(".map").hide();
+                $('#other').hide(); 
+                $('#montable').hide();
+                $('#chntable').hide();
+                $("#txwindow_tx").html('<h2>Stations Heard List</h2>')
+                $('#text_window').show();
             } else if(event.target.id == 'mnu4') {
                 if(activechannel != 0) {
                     for (let el of document.querySelectorAll('.message_' + activechannel)) el.style.display = 'none';
