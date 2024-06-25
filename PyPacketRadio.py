@@ -62,7 +62,7 @@ channels = config.get('tncinit', '3')
 callsign = ""
 polling = 1
 channel_to_read_byte = b'x00'
-
+isLora = False
 pdelay = 0.0016
 
 if os.path.exists(LoraDBPath):
@@ -484,7 +484,7 @@ ser.bytesize = serial.EIGHTBITS     # number of bits per bytes
 ser.parity = serial.PARITY_NONE     # set parity check: no parity
 ser.stopbits = serial.STOPBITS_ONE  # number of stop bits
 # ser.timeout = None                # block read
-ser.timeout = 0.06                  # non blocking read
+ser.timeout = 0.08                  # non blocking read
 ser.xonxoff = False                 # disable software flow control
 ser.rtscts = False                  # disable hardware (RTS/CTS) flow control
 ser.dsrdtr = False                  # disable hardware (DSR/DTR) flow control
@@ -876,6 +876,9 @@ async def go_serial():
                     sendbuffs = 0
 
 def replacesheet(text):
+    if isinstance(text, bytes):
+        print('[ DEBUG ] Posible byte arrat')
+
     # Replace all enters to be \n
     text = re.sub(r'(\r\n|\n|\r)', '\n', text)
     # Lets escape weird characters
@@ -1083,7 +1086,7 @@ def is_hour_between(start, end):
     return is_between
 
 import urllib.request
-weatherbeacon = True
+weatherbeacon = 0
 myqth = 'JO32'
 
 async def cleaner():
@@ -1092,9 +1095,20 @@ async def cleaner():
         await asyncio.sleep(60 * BEACONDELAY)
         # no beacon between 1 & 10
         if not is_hour_between(1, 10):
-            if weatherbeacon == False:
+            if weatherbeacon == 0:
                 sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
-                weatherbeacon = True
+                weatherbeacon = 1
+            elif weatherbeacon == 1 and isLora:
+                tn = int(time.time())
+                sendtext = ''
+                for k in LoraDB:
+                    if (tn - LoraDB[k][0]) < 43200:
+                        sendtext += str(LoraDB[k][1]) + ', '
+                if len(sendtext) > 0:
+                    sendqueue.append([0,'[LoraNET] Active stations : ' + sendtext[:-2]])
+                else:
+                    sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
+                weatherbeacon = 2
             else:
                 weatherurl = config.get('radio', 'weatherjson')
                 if weatherurl != '' and config.get('radio', 'weatherbeacon') == 'True':
@@ -1109,7 +1123,7 @@ async def cleaner():
                         sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
                 else:
                     sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
-                weatherbeacon = False
+                weatherbeacon = 0
         # Save Databases...
         with open(LoraDBPath, 'wb') as f:
             pickle.dump(LoraDB, f)
@@ -1223,6 +1237,7 @@ if __name__ == "__main__":
         print("\33[0;33mRadio QTH set to " + myqth)
 
     if config.get('meshtastic', 'plugin_enable') == 'True':
+        isLora = True
         print("\33[0;33mLoading meshtastic plugin...")
         meshtastic_interface = connect_meshtastic()
         # need do a meshtastic_interface.nodes
