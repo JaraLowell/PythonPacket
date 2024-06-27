@@ -23,6 +23,7 @@ import json
 from http import HTTPStatus
 from html import escape
 import random
+# import yaml
 
 # Next two are for the radio side of things
 import serial
@@ -63,6 +64,7 @@ callsign = ""
 polling = 1
 channel_to_read_byte = b'x00'
 isLora = False
+OnLora = False
 pdelay = 0.0016
 
 if os.path.exists(LoraDBPath):
@@ -117,33 +119,11 @@ async def register(websocket):
     global tlast
     print("[Network]\33[32m New WebSocket connection from", str(websocket.remote_address)[1:-1].replace('\'','').replace(', ',':') + "\33[0m")
     USERS.add(websocket)
-    await asyncio.sleep(0.22)
-    ser.write(b'\x00\x01\x00\x4D')
-    tmp = ser.readline()[2:-1].decode()
-    await sendmsg(0,'cmd1','M:' + tmp)
-    await asyncio.sleep(0.0016)
-    ser.write(b'\x00\x01\x00\x49')
-    tmp = ser.readline()[2:-1].decode()
-    await sendmsg(0,'cmd1','I:' + tmp)
-    await asyncio.sleep(0.0016)
-    if monitorbuffer:
-        for lines in monitorbuffer:
-            await websocket.send(json.dumps(lines[0]).replace("\\n", "n"))
-    await asyncio.sleep(0.1)
-    if channelbuffers:
-        for lines in channelbuffers:
-            await websocket.send(json.dumps(lines[0]).replace("\\n", "n"))
-    await asyncio.sleep(0.1)
-    await websocket.send('{"cmd":"bulkdone"}')
-    await websocket.send('{"cmd":"homepoint","station":"' + MyCall + '","lat":"' + str(config.get('radio', 'latitude')) + '","lon":"' + str(config.get('radio', 'longitude')) + '"}')
-    await sendmsg(0,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
 
 async def unregister(websocket):
     global USERS
     print("[Network]\33[32m WebSocket connection closed for", str(websocket.remote_address)[1:-1].replace('\'','').replace(', ',':') + "\33[0m")
     USERS.remove(websocket)
-
-OnLora = False
 
 async def mysocket(websocket, path):
     global ACTIVECHAN
@@ -152,7 +132,27 @@ async def mysocket(websocket, path):
     await register(websocket)
     try:
         async for message in websocket:
-            if message[:1] == '@':
+            if message == '^SendBulk^':
+                ser.write(b'\x00\x01\x00\x4D')
+                tmp = ser.readline()[2:-1].decode()
+                await sendmsg(0,'cmd1','M:' + tmp)
+                await asyncio.sleep(0.0016)
+                ser.write(b'\x00\x01\x00\x49')
+                tmp = ser.readline()[2:-1].decode()
+                await sendmsg(0,'cmd1','I:' + tmp)
+                await asyncio.sleep(0.0016)
+                if monitorbuffer:
+                    for lines in monitorbuffer:
+                        await websocket.send(json.dumps(lines[0]).replace("\\n", "n"))
+                await asyncio.sleep(0.1)
+                if channelbuffers:
+                    for lines in channelbuffers:
+                        await websocket.send(json.dumps(lines[0]).replace("\\n", "n"))
+                await asyncio.sleep(0.1)
+                await websocket.send('{"cmd":"bulkdone"}')
+                await websocket.send('{"cmd":"homepoint","station":"' + MyCall + '","lat":"' + str(config.get('radio', 'latitude')) + '","lon":"' + str(config.get('radio', 'longitude')) + '"}')
+                await sendmsg(0,'cmd3',json.dumps(ACTCHANNELS).replace('\"','\\\"'))
+            elif message[:1] == '@':
                 if message[1:].isnumeric():
                     tmp2 = int(message[1:])
                     if tmp2 == 9:
@@ -322,9 +322,7 @@ def logLora(nodeID, info):
         LoraDB[nodeID][5] = info[3] # altitude
         LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])
 
-# import yaml
 def on_meshtastic_message(packet, loop=None):
-    # print(yaml.dump(packet))
     global lora_lastmsg
     donoting = True
     if "decoded" in packet:
@@ -409,6 +407,9 @@ def on_meshtastic_message(packet, loop=None):
             else:
                 LoraDB[fromraw][10] = ''
 
+            if "snr" in packet and packet['snr'] is not None:
+                LoraDB[fromraw][11] = str(packet['snr']) + 'dB'
+
             if donoting == False and text_raws != '' and lora_lastmsg != text_raws:
                 lora_lastmsg = text_raws
                 print("[LoraNet]\33[0;37m mqtt " + text_from + LoraDB[fromraw][10] + "\33[0m")
@@ -418,48 +419,43 @@ def updatesnodes():
     info = ''
     itmp = 0
     for nodes, info in meshtastic_client.nodes.items():
-        nodeID = str(info['user']['id'])[1:]
-        nodeLast = 0
-        itmp = itmp + 1
-        if "lastHeard" in info and info["lastHeard"] is not None:
-            nodeLast = info['lastHeard']
-
-        if nodeID in LoraDB:
-            LoraDB[nodeID][0] = nodeLast
-        else:
-            LoraDB[nodeID] = [nodeLast, '', '', '', '', '', '', '', nodeLast, '', '', '']
-
-        # Apparently we can actually recieve an empty node ID with no user info o.O
         if "user" in info:
-            if "shortName" in info['user']:
-                LoraDB[nodeID][1] = str(info['user']['shortName'])
-            if "longName" in info['user']:
-                LoraDB[nodeID][2] = str(info['user']['longName'])
-            if "macaddr" in info['user']:
-                LoraDB[nodeID][6] = str(info['user']['macaddr'])
-            if "hwModel" in info['user']:
-                LoraDB[nodeID][7] = str(info['user']['hwModel'])
+            tmp = info['user']
+            if "id" in tmp:
+                # Only push to DB if we actually get a node ID
+                nodeID = str(tmp['id'])[1:]
+                nodeLast = 0
+                itmp = itmp + 1
 
-        if "position" in info:
-            tmp = info['position']
-            if "latitude" in tmp and "longitude" in tmp:
-                LoraDB[nodeID][3] = tmp['latitude']
-                LoraDB[nodeID][4] = tmp['longitude']
-                LoraDB[nodeID][9] = LatLon2qth(tmp['latitude'],tmp['longitude'])
-            if "altitude" in tmp:
-                LoraDB[nodeID][5] = tmp['altitude']
-        else:
-            # Lets dump it in to the ocean seing it has no coordinates, posible space fairing ? lol
-            if LoraDB[nodeID][3] == '':
-                LoraDB[nodeID][3] = 52.453941 + (itmp * 10)
-            if LoraDB[nodeID][4] == '':
-                LoraDB[nodeID][3] = 3.735352 
+                if "lastHeard" in info and info["lastHeard"] is not None: nodeLast = info['lastHeard']
 
-        if "viaMqtt" in info:
-            LoraDB[nodeID][10] = ' via mqtt'
+                if nodeID in LoraDB:
+                    LoraDB[nodeID][0] = nodeLast
+                else:
+                    LoraDB[nodeID] = [nodeLast, '', '', '', '', '', '', '', nodeLast, '', '', '']
 
-        if "snr" in info and info['snr'] is not None:
-            LoraDB[nodeID][11] = str(info['snr']) + 'dB'
+                if "shortName" in tmp: LoraDB[nodeID][1] = str(tmp['shortName'])
+                if "longName" in tmp: LoraDB[nodeID][2] = str(tmp['longName'])
+                if "macaddr" in tmp: LoraDB[nodeID][6] = str(tmp['macaddr'])
+                if "hwModel" in tmp: LoraDB[nodeID][7] = str(tmp['hwModel'])
+
+                if "position" in info:
+                    tmp2 = info['position']
+                    if "latitude" in tmp2 and "longitude" in tmp2:
+                        LoraDB[nodeID][3] = tmp2['latitude']
+                        LoraDB[nodeID][4] = tmp2['longitude']
+                        LoraDB[nodeID][9] = LatLon2qth(tmp2['latitude'],tmp2['longitude'])
+                    if "altitude" in tmp:
+                        LoraDB[nodeID][5] = tmp['altitude']
+                else:
+                    # Lets dump it in to the ocean seing it has no coordinates, posible space fairing ? lol
+                    if LoraDB[nodeID][3] == '':
+                        LoraDB[nodeID][3] = 52.453941 + (itmp * 10)
+                    if LoraDB[nodeID][4] == '':
+                        LoraDB[nodeID][3] = 3.735352 
+
+                if "viaMqtt" in info: LoraDB[nodeID][10] = ' via mqtt'
+                if "snr" in info and info['snr'] is not None: LoraDB[nodeID][11] = str(info['snr']) + 'dB'
 
 #-------------------------------------------------------------- TNC WA8DED ---------------------------------------------------------------------------
 BEACONDELAY = int(config.get('radio', 'beacon_time'))
@@ -1086,7 +1082,7 @@ def is_hour_between(start, end):
     return is_between
 
 import urllib.request
-weatherbeacon = 0
+weatherbeacon = 1
 myqth = 'JO32'
 
 async def cleaner():
@@ -1102,7 +1098,7 @@ async def cleaner():
                 tn = int(time.time())
                 sendtext = ''
                 for k in LoraDB:
-                    if (tn - LoraDB[k][0]) < 43200:
+                    if (tn - LoraDB[k][0]) < 7200:
                         sendtext += str(LoraDB[k][1]) + ', '
                 if len(sendtext) > 0:
                     sendqueue.append([0,'[LoraNET] Active stations : ' + sendtext[:-2]])

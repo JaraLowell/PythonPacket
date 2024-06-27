@@ -13,7 +13,8 @@
     <title>NodeJS Packet</title>
     <link rel="stylesheet" href="mystyles.css" />
     <link rel="stylesheet" href="jquery.mCustomScrollbar.css" />
-    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+    <!-- <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script> -->
+    <script type="text/javascript" src="libs/jquery.min.js"></script>
   </head>
 <body>
   <div class="scene">
@@ -212,8 +213,6 @@
         radioheard.mCustomScrollbar();
     });
 
-
-
     $(".action-box-input").on("keydown", function(e) {
         var typing;
         if ($(".action-box-input") !== "" && isTyping === true && e.which !== 13) {
@@ -234,6 +233,8 @@
             $(".led-green").fadeTo(111,1.0).delay(10).fadeTo(111,0.12);
         }
         disc += 1;
+
+        socket.send('^SendBulk^');
     };
 
     socket.onerror = function (e) {
