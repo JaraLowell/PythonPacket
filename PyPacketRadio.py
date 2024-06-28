@@ -312,8 +312,8 @@ def logLora(nodeID, info):
         LoraDB[nodeID] = [tnow, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '']
         sendqueue.append([0,'[LoraNET] New lora station registered with station id !' + nodeID])
     if info[0] == 'NODEINFO_APP':
-        LoraDB[nodeID][1] = info[1] # short name
-        LoraDB[nodeID][2] = info[2] # long name
+        LoraDB[nodeID][1] = str(info[1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1] # short name
+        LoraDB[nodeID][2] = str(info[2].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1] # long name
         LoraDB[nodeID][6] = info[3] # mac adress
         LoraDB[nodeID][7] = info[4] # hardware
     elif info[0] == 'POSITION_APP':
@@ -434,8 +434,8 @@ def updatesnodes():
                 else:
                     LoraDB[nodeID] = [nodeLast, '', '', 81.0, 186.0, 0, '', '', nodeLast, '', '', '']
 
-                if "shortName" in tmp: LoraDB[nodeID][1] = str(tmp['shortName'])
-                if "longName" in tmp: LoraDB[nodeID][2] = str(tmp['longName'])
+                if "shortName" in tmp: LoraDB[nodeID][1] = str(tmp['shortName'].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+                if "longName" in tmp: LoraDB[nodeID][2] = str(tmp['longName'].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
                 if "macaddr" in tmp: LoraDB[nodeID][6] = str(tmp['macaddr'])
                 if "hwModel" in tmp: LoraDB[nodeID][7] = str(tmp['hwModel'])
 
