@@ -309,7 +309,7 @@ def logLora(nodeID, info):
     if nodeID in LoraDB:
         LoraDB[nodeID][0] = tnow # time last seen
     else:
-        LoraDB[nodeID] = [tnow, '', '', '', '', '', '', '', tnow, '', '', '']
+        LoraDB[nodeID] = [tnow, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '']
         sendqueue.append([0,'[LoraNET] New lora station registered with station id !' + nodeID])
     if info[0] == 'NODEINFO_APP':
         LoraDB[nodeID][1] = info[1] # short name
@@ -432,7 +432,7 @@ def updatesnodes():
                 if nodeID in LoraDB:
                     LoraDB[nodeID][0] = nodeLast
                 else:
-                    LoraDB[nodeID] = [nodeLast, '', '', '', '', '', '', '', nodeLast, '', '', '']
+                    LoraDB[nodeID] = [nodeLast, '', '', 81.0, 186.0, 0, '', '', nodeLast, '', '', '']
 
                 if "shortName" in tmp: LoraDB[nodeID][1] = str(tmp['shortName'])
                 if "longName" in tmp: LoraDB[nodeID][2] = str(tmp['longName'])
@@ -447,12 +447,6 @@ def updatesnodes():
                         LoraDB[nodeID][9] = LatLon2qth(tmp2['latitude'],tmp2['longitude'])
                     if "altitude" in tmp:
                         LoraDB[nodeID][5] = tmp['altitude']
-                else:
-                    # Lets dump it in to the ocean seing it has no coordinates, posible space fairing ? lol
-                    if LoraDB[nodeID][3] == '':
-                        LoraDB[nodeID][3] = 52.453941 + (itmp * 10)
-                    if LoraDB[nodeID][4] == '':
-                        LoraDB[nodeID][3] = 3.735352 
 
                 if "viaMqtt" in info: LoraDB[nodeID][10] = ' via mqtt'
                 if "snr" in info and info['snr'] is not None: LoraDB[nodeID][11] = str(info['snr']) + 'dB'
