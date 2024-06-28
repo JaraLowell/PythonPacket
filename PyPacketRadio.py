@@ -25,6 +25,8 @@ from html import escape
 import random
 # import yaml
 
+from unidecode import unidecode
+
 # Next two are for the radio side of things
 import serial
 import configparser
@@ -65,6 +67,7 @@ polling = 1
 channel_to_read_byte = b'x00'
 isLora = False
 OnLora = False
+mylorachan = {}
 pdelay = 0.0016
 
 if os.path.exists(LoraDBPath):
@@ -259,6 +262,7 @@ async def ainput(string: str) -> str:
 
 import meshtastic.tcp_interface
 import meshtastic.serial_interface
+import base64
 from pubsub import pub
 meshtastic_client = None
 lora_lastmsg = ''
@@ -297,6 +301,17 @@ def connect_meshtastic(force_connect=False):
     nodeInfo = meshtastic_client.getMyNodeInfo()
     print("[LoraNet] Connected to " + nodeInfo['user']['id'] + " > "  + nodeInfo['user']['shortName'] + " / " + nodeInfo['user']['longName'] + " using a " + nodeInfo['user']['hwModel'])
     logLora((nodeInfo['user']['id'])[1:], ['NODEINFO_APP', nodeInfo['user']['shortName'], nodeInfo['user']['longName'], nodeInfo['user']["macaddr"],nodeInfo['user']['hwModel']])
+    # Lets get the Local Node's channels
+    nodeInfo = meshtastic_client.getNode('^local')
+    channels = nodeInfo.channels
+    if channels:
+        for channel in channels:
+            # psk_base64 = base64.b64encode(channel.settings.psk).decode('utf-8')
+            # print(f"Index: {channel.index}, Role: {channel.role}, PSK (Base64): {psk_base64}, Name: {channel.settings.name}")
+            if channel.settings.name == '':
+                mylorachan[channel.index] = str(channel.index)
+            else:
+                mylorachan[channel.index] = unidecode(channel.settings.name)
     updatesnodes()
     return meshtastic_client
 
@@ -323,6 +338,7 @@ def logLora(nodeID, info):
         LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])
 
 def on_meshtastic_message(packet, loop=None):
+    # print(yaml.dump(packet))
     global lora_lastmsg
     donoting = True
     if "decoded" in packet:
@@ -376,8 +392,8 @@ def on_meshtastic_message(packet, loop=None):
             if data["portnum"] == "NODEINFO_APP":
                 text = data["user"]
                 if "shortName" in text:
-                    lora_sn = str(text["shortName"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
-                    lora_ln = str(text["longName"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+                    lora_sn = str(text["shortName"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
+                    lora_ln = str(text["longName"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
                     lora_mc = text["macaddr"]
                     lora_mo = text["hwModel"]
                     logLora(packet["fromId"][1:], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
@@ -386,14 +402,14 @@ def on_meshtastic_message(packet, loop=None):
                     sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_raws])
                     donoting = False
             if data["portnum"] == "TEXT_MESSAGE_APP" and "text" in data:
-                text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+                text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
                 text_raws = data["text"]
                 text_chns = 'Private'
                 if "toId" in packet:
                     if packet["toId"] == '^all':
-                        text_chns = 'Primary'
+                        text_chns = '0'
                 if "channel" in packet:
-                    text_chns = str(packet["channel"])
+                    text_chns = str(mylorachan[packet["channel"]].encode('ascii', 'xmlcharrefreplace'), 'ascii')
                 if text_chns != 'Private':
                     sendqueue.append([0,'[LoraNET] [Ch ' + text_chns + '] ' + text_from + text_mqtt + ': ' + text_msgs])
                 sendqueue.append([9,text_from + text_mqtt + ' on Channel ' + text_chns + '&#10;' + text_msgs])
@@ -434,8 +450,8 @@ def updatesnodes():
                 else:
                     LoraDB[nodeID] = [nodeLast, '', '', 81.0, 186.0, 0, '', '', nodeLast, '', '', '']
 
-                if "shortName" in tmp: LoraDB[nodeID][1] = str(tmp['shortName'].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
-                if "longName" in tmp: LoraDB[nodeID][2] = str(tmp['longName'].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1]
+                if "shortName" in tmp: LoraDB[nodeID][1] = str(tmp['shortName'].encode('ascii', 'xmlcharrefreplace'), 'ascii')
+                if "longName" in tmp: LoraDB[nodeID][2] = str(tmp['longName'].encode('ascii', 'xmlcharrefreplace'), 'ascii')
                 if "macaddr" in tmp: LoraDB[nodeID][6] = str(tmp['macaddr'])
                 if "hwModel" in tmp: LoraDB[nodeID][7] = str(tmp['hwModel'])
 
