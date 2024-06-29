@@ -344,7 +344,7 @@ def on_meshtastic_message(packet, loop=None):
     if "decoded" in packet:
         data = packet["decoded"]
         text_from = ''
-        if "fromId" in packet:
+        if "fromId" in packet and packet["fromId"] is not None:
             text_from  = packet["fromId"][1:]
             text_mqtt = ''
             text_msgs = ''
