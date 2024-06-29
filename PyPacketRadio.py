@@ -259,10 +259,9 @@ async def ainput(string: str) -> str:
             None, sys.stdin.readline)
 
 #----------------------------------------------------------- Meshtastic Lora Con ------------------------------------------------------------------------
-
 import meshtastic.tcp_interface
 import meshtastic.serial_interface
-import base64
+# import base64
 from pubsub import pub
 meshtastic_client = None
 lora_lastmsg = ''
@@ -408,12 +407,15 @@ def on_meshtastic_message(packet, loop=None):
                 if "toId" in packet:
                     if packet["toId"] == '^all':
                         text_chns = '0'
+
                 if "channel" in packet:
                     text_chns = str(mylorachan[packet["channel"]].encode('ascii', 'xmlcharrefreplace'), 'ascii')
+
                 if text_chns != 'Private':
                     sendqueue.append([0,'[LoraNET] [Ch ' + text_chns + '] ' + text_from + text_mqtt + ': ' + text_msgs])
-                sendqueue.append([9,text_from + text_mqtt + ' on Channel ' + text_chns + '&#10;' + text_msgs])
+
                 donoting = False
+                sendqueue.append([9,text_from + text_mqtt + ' on Channel ' + text_chns + '&#10;' + text_msgs])
 
             if donoting == True:
                 logLora(packet["fromId"][1:],['UPDATETIME'])
@@ -1245,6 +1247,7 @@ if __name__ == "__main__":
     if config.get('meshtastic', 'plugin_enable') == 'True':
         isLora = True
         print("\33[0;33mLoading meshtastic plugin...")
+        # print("\33[0;33m" + meshtastic.__version__)
         meshtastic_interface = connect_meshtastic()
         # need do a meshtastic_interface.nodes
         # this reurns an list of node's known to the device
