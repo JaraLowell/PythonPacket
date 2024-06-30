@@ -184,6 +184,16 @@ async def mysocket(websocket, path):
                 data_decode = codecs.decode(data, 'cp850')
                 data_decode = re.sub(r'[\x00-\x09\xfe-\xff]', '', data_decode) # lets get rid of non printable shiz
                 print('[ DEBUG ]\33[0;33m Cmd Send Responce : "' + data_decode + '"')
+            elif message[:1] == '^' and OnLora:
+                dest = '!' + message[2:]
+                await sendmsg(9,'echo','Requesting Position data from ' + LoraDB[message[2:]][2] + ', Please wait....')
+                try:
+                    meshtastic_client.sendPosition(destinationId=dest, wantResponse=True, channelIndex=0)
+                except:
+                    await sendmsg(9,'echo', 'Position request Failed!')
+                else:
+                    await sendmsg(9,'echo', 'Position request success.')
+                # meshtastic_client.sendTelemetry(destinationId=dest, wantResponse=True, channelIndex=channelIndex)
             else:
                 print("[Network] " + message + "\33[0m")
                 # need know what channel we actually sennding on . . .

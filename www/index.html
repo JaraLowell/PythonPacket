@@ -120,7 +120,7 @@
     }
     const url = getCurrentURL().replace("http", "ws")
 
-    var isTyping, messages, uctTimer;
+    var isTyping, messages, uctTimer, clickspam;
 
     messages = $(".messages-content");
     mheards = $(".mheard-content");
@@ -223,6 +223,15 @@
             return userTypingClear();
         }
     });
+    clickspam = Math.floor(Date.now() / 1000);
+    window.PingNode = function(e) {
+        var now = Math.floor(Date.now() / 1000)
+        if(now - clickspam > 10) {
+            clickspam = now;
+            console.log(e);
+            socket.send('^P' + e);
+        } else console.log('Dont spam please...');
+    }
 
     socket.onopen = function (e) {
         // $('#mCSB_1_container').clone().prop('id', 'mSCB_2_container').after('#mCSB_1_container');
@@ -374,7 +383,9 @@
                         name = tmp[tmpname][1];
                         if(name == '') name = '&nbsp;'
                         tablerow += name + '</td><td class="LHInfo" id="dbi' + k + '"></td><td class="LHInfo" id="info' + k + '">';
-                        tablerow += '&nbsp;</td><td class="LHInfo" style="width: 3px; border-radius: 0px 0px 5px 0px;" rowspan="2"></td></tr><tr><td class="LHInfo" id="dst' + k + '"></td><td class="LHInfo" id="time' + k + '">';
+                        tablerow += '&nbsp;</td><td class="LHInfo" style="width: 8px; border-radius: 0px 0px 5px 0px;" rowspan="2">';
+                        tablerow += '<img src="libs/images/marker-icon-black.png" onclick="PingNode(\'' + k + '\')" id="ping' + k + '" width="9px">';
+                        tablerow += '</td></tr><tr><td class="LHInfo" id="dst' + k + '"></td><td class="LHInfo" id="time' + k + '">';
                         tablerow += '&nbsp;</td></tr><tr><td colspan="4" style="height: 2px;"></td></tr></table>';
                     }
                     tablerow += '<br>&nbsp;';
@@ -385,9 +396,10 @@
                     for(var k in tmp) {
                         // Hide old fields...
                         var age = Math.round((Math.floor(new Date().getTime() / 1000) - tmp[k][0]) / 86400,0);
+                        $("#ping" + k).hide();
                         if(age > 7 && $("#" + k).is(":visible")) $("#" + k).hide();
                         else if(age <= 7 && $("#" + k).is(":hidden")) $("#" + k).show();
-
+                        
                         name = '';
                         if(tmp[k][10] != '') { name = '&#128423; '; $("#lname" + k).css({"background-color": '#806b6b'}); } else  { $("#lname" + k).css({"background-color": '#6b7280'}); }
                         if(tmp[k][2]  != '') name += tmp[k][2]; else name += '!' + k;
@@ -399,6 +411,7 @@
                         $("#time" + k).html(name);
                         if(name.indexOf("minutes") != -1 || name.indexOf("now") != -1) {
                             $("#dbi" + k).html(tmp[k][11]);
+                            $("#ping" + k).show();
                         } else $("#dbi" + k).html("");
                         if(mylat != '' && mylon != '' && tmp[k][9] != '') {
                             var spot = locator2deg(tmp[k][9]);
