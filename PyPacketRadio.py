@@ -336,8 +336,16 @@ def logLora(nodeID, info):
         LoraDB[nodeID] = [tnow, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '']
         sendqueue.append([0,'[LoraNET] New lora station registered with station id !' + nodeID])
     if info[0] == 'NODEINFO_APP':
-        LoraDB[nodeID][1] = str(info[1].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1] # short name
-        LoraDB[nodeID][2] = str(info[2].encode('ascii', 'xmlcharrefreplace')).replace('b\'', '')[:-1] # long name
+        tmp = str(info[1].encode('ascii', 'xmlcharrefreplace'), 'ascii') # short name
+        if tmp != '':
+            LoraDB[nodeID][1] = tmp
+        else:
+            LoraDB[nodeID][1] = nodeID[-4:]
+        tmp = str(info[2].encode('ascii', 'xmlcharrefreplace'), 'ascii') # long name
+        if tmp != '':
+            LoraDB[nodeID][2] = tmp
+        else:
+            LoraDB[nodeID][2] = '!' + nodeID
         LoraDB[nodeID][6] = info[3] # mac adress
         LoraDB[nodeID][7] = info[4] # hardware
     elif info[0] == 'POSITION_APP':
@@ -345,7 +353,7 @@ def logLora(nodeID, info):
         LoraDB[nodeID][4] = info[2] # longitude
         LoraDB[nodeID][5] = info[3] # altitude
         LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])
-
+    
 def on_meshtastic_message(packet, loop=None):
     # print(yaml.dump(packet))
     global lora_lastmsg
@@ -381,7 +389,7 @@ def on_meshtastic_message(packet, loop=None):
             if data["portnum"] == "POSITION_APP":
                 text = data["position"]
                 if "altitude" in text:
-                    text_msgs = "Position beacon: "
+                    text_msgs = "NodePosition beacon: "
                     if "latitude" in text:
                         text_msgs += "latitude " + str(round(text["latitude"],4)) + " "
                     if "longitude" in text:
