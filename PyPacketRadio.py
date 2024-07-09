@@ -336,12 +336,12 @@ def logLora(nodeID, info):
         LoraDB[nodeID] = [tnow, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '']
         sendqueue.append([0,'[LoraNET] New lora station registered with station id !' + nodeID])
     if info[0] == 'NODEINFO_APP':
-        tmp = str(info[1].encode('ascii', 'xmlcharrefreplace'), 'ascii') # short name
+        tmp = str(info[1].encode('ascii', 'xmlcharrefreplace'), 'ascii').replace("\n", "") # short name
         if tmp != '':
             LoraDB[nodeID][1] = tmp
         else:
             LoraDB[nodeID][1] = nodeID[-4:]
-        tmp = str(info[2].encode('ascii', 'xmlcharrefreplace'), 'ascii') # long name
+        tmp = str(info[2].encode('ascii', 'xmlcharrefreplace'), 'ascii').replace("\n", "") # long name
         if tmp != '':
             LoraDB[nodeID][2] = tmp
         else:
@@ -470,8 +470,8 @@ def updatesnodes():
                 else:
                     LoraDB[nodeID] = [nodeLast, '', '', 81.0, 186.0, 0, '', '', nodeLast, '', '', '']
 
-                if "shortName" in tmp: LoraDB[nodeID][1] = str(tmp['shortName'].encode('ascii', 'xmlcharrefreplace'), 'ascii')
-                if "longName" in tmp: LoraDB[nodeID][2] = str(tmp['longName'].encode('ascii', 'xmlcharrefreplace'), 'ascii')
+                if "shortName" in tmp: LoraDB[nodeID][1] = str(tmp['shortName'].encode('ascii', 'xmlcharrefreplace'), 'ascii').replace("\n", "")
+                if "longName" in tmp: LoraDB[nodeID][2] = str(tmp['longName'].encode('ascii', 'xmlcharrefreplace'), 'ascii').replace("\n", "")
                 if "macaddr" in tmp: LoraDB[nodeID][6] = str(tmp['macaddr'])
                 if "hwModel" in tmp: LoraDB[nodeID][7] = str(tmp['hwModel'])
 
@@ -1131,7 +1131,8 @@ async def cleaner():
                     if (tn - LoraDB[k][0]) < 7200:
                         sendtext += str(LoraDB[k][1]) + ', '
                 if len(sendtext) > 0:
-                    sendqueue.append([0,'[LoraNET] Active stations : ' + sendtext[:-2]])
+                    send = (sendtext[:160] + '.....') if len(sendtext) > 160 else sendtext
+                    sendqueue.append([0,'[LoraNET] Active stations : ' + send[:-2]])
                 else:
                     sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
                 weatherbeacon = 2
