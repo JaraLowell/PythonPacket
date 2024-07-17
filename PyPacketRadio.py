@@ -1273,13 +1273,17 @@ if __name__ == "__main__":
 
     try:
         loop = asyncio.get_event_loop()
-        asyncio.ensure_future(go_serial())
+        taskgo_serial = asyncio.ensure_future(go_serial())
 
-        loop.run_until_complete(start_server)
-        loop.create_task(main())
-        loop.create_task(cleaner())
+        taskstart_server = loop.run_until_complete(start_server)
+        taskmain = loop.create_task(main())
+        taskcleaner = loop.create_task(cleaner())
         loop.run_forever()
     except KeyboardInterrupt:
+        taskgo_serial.cancel()
+        taskstart_server.close()
+        taskmain.cancel()
+        taskcleaner.cancel()
         # Databases...
         with open(LoraDBPath, 'wb') as f:
             pickle.dump(LoraDB, f)
