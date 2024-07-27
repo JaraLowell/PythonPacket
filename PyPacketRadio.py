@@ -1128,8 +1128,9 @@ async def cleaner():
                 tn = int(time.time())
                 sendtext = ''
                 for k in LoraDB:
-                    if (tn - LoraDB[k][0]) < 7200:
-                        sendtext += str(LoraDB[k][1]) + ', '
+                    if (LoraDB[k][1] != ''):
+                        if (tn - LoraDB[k][0]) < 7200:
+                            sendtext += str(LoraDB[k][1]) + ', '
                 if len(sendtext) > 0:
                     send = (sendtext[:160] + '.....') if len(sendtext) > 160 else sendtext
                     sendqueue.append([0,'[LoraNET] Active stations : ' + send[:-2]])
