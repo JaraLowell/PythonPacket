@@ -373,15 +373,19 @@ def on_meshtastic_message(packet, loop=None):
                 updatesnodes()
 
             if "viaMqtt" in packet:
+                LoraDB[fromraw][10] = ' via mqtt'
                 text_mqtt = ' via mqtt'
+            else:
+                LoraDB[fromraw][10] = ''
 
             # Lets Work the Msgs
             if data["portnum"] == "TELEMETRY_APP":
                 if "deviceMetrics" in  data["telemetry"]:
                     text = data["telemetry"]["deviceMetrics"]
                     if "voltage" in text and "batteryLevel" in text:
-                        sendqueue.append([9,'deviceMetrics:{\\"id\\":\\"' + packet["fromId"][1:] + '\\",\\"v\\":' + str(round(text["voltage"],2)) + ',\\"b\\":' + str(text["batteryLevel"]) + '}'])
-                donoting = True
+                        # sendqueue.append([9,'deviceMetrics:{\\"id\\":\\"' + packet["fromId"][1:] + '\\",\\"v\\":' + str(round(text["voltage"],2)) + ',\\"b\\":' + str(text["batteryLevel"]) + '}'])
+                        text_raws = 'NodeTelemetry ' + str(round(text["voltage"],2)) + 'v ' + str(text["batteryLevel"]) + '%'
+                        if text_mqtt == '': donoting = False
             if data["portnum"] == "NEIGHBORINFO_APP":
                 donoting = True
             if data["portnum"] == "ROUTING_APP":
@@ -405,7 +409,7 @@ def on_meshtastic_message(packet, loop=None):
                     # sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_msgs])
                     logLora(packet["fromId"][1:], ['POSITION_APP', text["latitude"], text["longitude"], text["altitude"]])
                     # ["latitudeI"] ["longitude"] ["altitude"] ["time"] ["precisionBits"]
-                    donoting = True
+                    if text_mqtt == '': donoting = False
             if data["portnum"] == "NODEINFO_APP":
                 text = data["user"]
                 if "shortName" in text:
@@ -416,8 +420,9 @@ def on_meshtastic_message(packet, loop=None):
                     logLora(packet["fromId"][1:], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
                     text_raws = "NodeInfo beacon using hardware " + lora_mo
                     text_from = LoraDB[packet["fromId"][1:]][1] + " (" + LoraDB[packet["fromId"][1:]][2] + ")"
-                    sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_raws])
-                    donoting = False
+                    if text_mqtt == '':
+                        donoting = False
+                        sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_raws])
             if data["portnum"] == "TEXT_MESSAGE_APP" and "text" in data:
                 text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
                 text_raws = data["text"]
@@ -438,18 +443,16 @@ def on_meshtastic_message(packet, loop=None):
             if donoting == True:
                 logLora(packet["fromId"][1:],['UPDATETIME'])
 
-            if "viaMqtt" in packet:
-                LoraDB[fromraw][10] = ' via mqtt'
-            else:
-                LoraDB[fromraw][10] = ''
-
             if "snr" in packet and packet['snr'] is not None:
                 LoraDB[fromraw][11] = str(packet['snr']) + 'dB'
 
             if donoting == False and text_raws != '' and lora_lastmsg != text_raws:
                 lora_lastmsg = text_raws
-                print("[LoraNet]\33[0;37m mqtt " + text_from + LoraDB[fromraw][10] + "\33[0m")
-                _print('\33[0;32m' + (' ' * 21) + text_raws + '\33[0m')
+                print("[LoraNet]\33[0;37m " + text_from + LoraDB[fromraw][10] + "\33[0m")
+                if "viaMqtt" in packet:
+                    _print('\33[0;32m' + (' ' * 21) + text_raws + '\33[0m')
+                else:
+                    _print('\33[0;33m' + (' ' * 21) + text_raws + ' (' + LoraDB[fromraw][11] + ')\33[0m')
 
 def updatesnodes():
     info = ''
