@@ -23,7 +23,7 @@ import json
 from http import HTTPStatus
 from html import escape
 import random
-# import yaml
+import yaml
 
 from unidecode import unidecode
 
@@ -52,6 +52,7 @@ MoniLogPath = 'MoniLog.pk1'
 ChanLogPath = 'ChanLog.pk1'
 
 MyCall = config.get('radio', 'mycall')
+MyLora = ''
 SendLengt = 127
 MyPath = os.getcwd() + os.path.sep + 'txtfiles' + os.path.sep
 
@@ -224,14 +225,14 @@ async def sendmsg(chan, cmd, message):
         tmp['time'] = timenow
         tmp['chan'] = chan
         tmp['cmd']  = cmd
-        tmp['data'] = message;
+        tmp['data'] = message
         if chan == 0:
             monitorbuffer.append([tmp])
             if len(monitorbuffer) > 300:
                 monitorbuffer.pop(0)
         else:
             if "deviceMetrics" not in message:
-                channelbuffers.append([tmp]);
+                channelbuffers.append([tmp])
                 if len(channelbuffers) > 500:
                     channelbuffers.pop(0)
 
@@ -277,7 +278,7 @@ meshtastic_client = None
 lora_lastmsg = ''
 
 def connect_meshtastic(force_connect=False):
-    global meshtastic_client
+    global meshtastic_client, MyLora
     if meshtastic_client and not force_connect:
         return meshtastic_client
     meshtastic_client = None
@@ -309,6 +310,15 @@ def connect_meshtastic(force_connect=False):
 
     nodeInfo = meshtastic_client.getMyNodeInfo()
     print("[LoraNet] Connected to " + nodeInfo['user']['id'] + " > "  + nodeInfo['user']['shortName'] + " / " + nodeInfo['user']['longName'] + " using a " + nodeInfo['user']['hwModel'])
+
+    tmp = {}
+    tmp['time'] = int(time.time())
+    tmp['chan'] = 9
+    tmp['cmd']  = 'cmd4'
+    tmp['data'] = "Connected to " + nodeInfo['user']['id'] + " > "  + nodeInfo['user']['shortName'] + " / " + nodeInfo['user']['longName'] + " using a " + nodeInfo['user']['hwModel']
+    channelbuffers.append([tmp])
+
+    MyLora = (nodeInfo['user']['id'])[1:]
     logLora((nodeInfo['user']['id'])[1:], ['NODEINFO_APP', nodeInfo['user']['shortName'], nodeInfo['user']['longName'], nodeInfo['user']["macaddr"],nodeInfo['user']['hwModel']])
     # Lets get the Local Node's channels
     nodeInfo = meshtastic_client.getNode('^local')
@@ -366,17 +376,21 @@ def on_meshtastic_message(packet, loop=None):
             text_mqtt = ''
             text_msgs = ''
             fromraw = text_from
+            tnow = int(time.time())
             if text_from in LoraDB:
+                LoraDB[text_from][0] = tnow
                 if LoraDB[text_from][1] != '':
                     text_from = LoraDB[text_from][1] + " (" + LoraDB[text_from][2] + ")"
             else:
-                updatesnodes()
+                LoraDB[text_from] = [tnow, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '']
 
             if "viaMqtt" in packet:
                 LoraDB[fromraw][10] = ' via mqtt'
                 text_mqtt = ' via mqtt'
             else:
                 LoraDB[fromraw][10] = ''
+                # if MyLora != fromraw: print(yaml.dump(packet))
+                # hopLimit hopStart
 
             # Lets Work the Msgs
             if data["portnum"] == "TELEMETRY_APP":
@@ -385,11 +399,14 @@ def on_meshtastic_message(packet, loop=None):
                     if "voltage" in text and "batteryLevel" in text:
                         # sendqueue.append([9,'deviceMetrics:{\\"id\\":\\"' + packet["fromId"][1:] + '\\",\\"v\\":' + str(round(text["voltage"],2)) + ',\\"b\\":' + str(text["batteryLevel"]) + '}'])
                         text_raws = 'NodeTelemetry ' + str(round(text["voltage"],2)) + 'v ' + str(text["batteryLevel"]) + '%'
-                        if text_mqtt == '': donoting = False
+                        if text_mqtt == '' and MyLora != fromraw:
+                            donoting = False
             if data["portnum"] == "NEIGHBORINFO_APP":
                 donoting = True
             if data["portnum"] == "ROUTING_APP":
-                donoting = True
+                text_raws = 'NodeRouting Info' 
+                if text_mqtt == '' and MyLora != fromraw:
+                    donoting = False
             if data["portnum"] == "POSITION_APP":
                 text = data["position"]
                 if "altitude" in text:
@@ -401,7 +418,7 @@ def on_meshtastic_message(packet, loop=None):
                         qth = LatLon2qth(round(text["latitude"],6), round(text["longitude"],6))
                         # text_msgs += "(" + qth + ") "
                     if "altitude" in text:
-                        text_msgs += "altitude " + str(text["altitude"]) + "meter"
+                        text_msgs += "altitude " + str(text["altitude"]) + " meter"
 
                     # if not is_hour_between(1, 10) and "viaMqtt" not in packet:
                     #     sendqueue.append([0,'[LoraNET] Position beacon from ' + text_from + ' QTH ' + qth[:-2]])
@@ -409,7 +426,8 @@ def on_meshtastic_message(packet, loop=None):
                     # sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_msgs])
                     logLora(packet["fromId"][1:], ['POSITION_APP', text["latitude"], text["longitude"], text["altitude"]])
                     # ["latitudeI"] ["longitude"] ["altitude"] ["time"] ["precisionBits"]
-                    if text_mqtt == '': donoting = False
+                    if text_mqtt == '' and MyLora != fromraw:
+                        donoting = False
             if data["portnum"] == "NODEINFO_APP":
                 text = data["user"]
                 if "shortName" in text:
@@ -440,11 +458,14 @@ def on_meshtastic_message(packet, loop=None):
                 donoting = False
                 sendqueue.append([9,text_from + text_mqtt + ' on Channel ' + text_chns + '&#10;' + text_msgs])
 
-            if donoting == True:
+            if data["portnum"] != "POSITION_APP" and data["portnum"] != "TEXT_MESSAGE_APP":
                 logLora(packet["fromId"][1:],['UPDATETIME'])
 
             if "snr" in packet and packet['snr'] is not None:
                 LoraDB[fromraw][11] = str(packet['snr']) + 'dB'
+
+            if "rxSnr" in packet and packet['rxSnr'] is not None:
+                LoraDB[fromraw][11] = str(packet['rxSnr']) + 'dB'
 
             if donoting == False and text_raws != '' and lora_lastmsg != text_raws:
                 lora_lastmsg = text_raws
