@@ -463,9 +463,10 @@ def on_meshtastic_message(packet, loop=None):
                                 nodeid = LoraDB[nodeid][1]
                             else:
                                 nodeid = '!' + nodeid
-                            text_raws += nodeid + ', '
+                            text_raws += nodeid + ' (' + str(neighbor["snr"]) + 'dB), '
                         text_raws = text_raws[:-2] + ']'
-                    if text_mqtt == '' and MyLora != fromraw:
+                    if text_mqtt == '':
+                        # and MyLora != fromraw:
                         donoting = False
                 else:
                     text_raws = 'Node ' + (data["portnum"].split('_APP', 1)[0]).title()
@@ -493,8 +494,10 @@ def on_meshtastic_message(packet, loop=None):
                             text_from = ' (Hops ' + str(LoraDB[fromraw][12]) + ')'
                             if "hopLimit" in packet:
                                 text_from = text_from[:-1] + '/' + str(packet["hopLimit"]) + ')'
+                        if LoraDB[fromraw][11] != '':
+                            text_from += ' (' + LoraDB[fromraw][11] + ')'
 
-                        _print('\33[0;33m' + (' ' * 21) + text_raws + ' (' + LoraDB[fromraw][11] + ')' + text_from + '\33[0m')
+                        _print('\33[0;33m' + (' ' * 21) + text_raws + text_from + '\33[0m')
     except Exception as e:
         print("[LoraNet] \33[1;31m" + repr(e))
 
