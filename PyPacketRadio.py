@@ -277,6 +277,13 @@ from pubsub import pub
 meshtastic_client = None
 lora_lastmsg = ''
 
+def value_to_graph(value, min_value=-19, max_value=1, graph_length=8):
+    value = max(min_value, min(max_value, value))
+    position = int((value - min_value) / (max_value - min_value) * (graph_length - 1))
+    graph = ['_'] * graph_length
+    graph[position] = '|'
+    return ''.join(graph)
+
 def connect_meshtastic(force_connect=False):
     global meshtastic_client, MyLora
     if meshtastic_client and not force_connect:
@@ -437,7 +444,7 @@ def on_meshtastic_message(packet, loop=None):
                             donoting = False
                             sendqueue.append([9,text_from + text_mqtt + '&#13;' + text_raws])
                 elif data["portnum"] == "TEXT_MESSAGE_APP" and "text" in data:
-                    text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
+                    text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace'), 'ascii').rstrip()
                     text_raws = data["text"]
                     text_chns = 'Private'
                     if "toId" in packet:
@@ -495,7 +502,9 @@ def on_meshtastic_message(packet, loop=None):
                             if "hopLimit" in packet:
                                 text_from = text_from[:-1] + '/' + str(packet["hopLimit"]) + ')'
                         if LoraDB[fromraw][11] != '':
-                            text_from += ' (' + LoraDB[fromraw][11] + ')'
+                            v = float(LoraDB[fromraw][11].replace('dB', ''))
+                            text_from += f" ({round(v,1)}dB {value_to_graph(v)} )"
+                            # ' (' + LoraDB[fromraw][11] + ')'
 
                         _print('\33[0;33m' + (' ' * 21) + text_raws + text_from + '\33[0m')
     except Exception as e:
