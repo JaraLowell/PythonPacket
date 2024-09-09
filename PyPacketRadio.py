@@ -637,7 +637,6 @@ def init_tncinWa8ded():
         print("[ DEBUG ] \33[0;32m" + statustnc  + '\33[0m')
     ser.write(b'\x00\x01\x00\x56')
     print("[ DEBUG ] \33[0;32m" + ser.readline().decode()[2:] + '\33[0m')
-
 def send_init_tnc(command, chan, cmd):
     length_command = len(command) - 1
     if length_command < 10:
