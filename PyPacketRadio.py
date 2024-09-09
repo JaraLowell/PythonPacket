@@ -470,7 +470,9 @@ def on_meshtastic_message(packet, loop=None):
                                 nodeid = LoraDB[nodeid][1]
                             else:
                                 nodeid = '!' + nodeid
-                            text_raws += nodeid + ' (' + str(neighbor["snr"]) + 'dB), '
+                            text_raws += nodeid
+                            if "snr" in neighbor:
+                                text_raws += ' (' + str(neighbor["snr"]) + 'dB), '
                         text_raws = text_raws[:-2] + ']'
                     if text_mqtt == '':
                         # and MyLora != fromraw:
