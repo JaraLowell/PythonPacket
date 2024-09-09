@@ -628,10 +628,15 @@ def init_tncinWa8ded():
     ser.readline()
     ser.write(b'\x4a\x48\x4f\x53\x54\x31\x0d')
     print('\33[0;33mSetting TNC in hostmode...\33[0m')
-    print("[ DEBUG ] \33[0;32m" + ser.readline().decode()  + '\33[0m')
+    statustnc = ser.readline().decode().rstrip()
+    if statustnc != "JHOST1":
+        print(statustnc)
+        print("[ DEBUG ] NO TNC!!!!")
+        sys.exit()
+    else:
+        print("[ DEBUG ] \33[0;32m" + statustnc  + '\33[0m')
     ser.write(b'\x00\x01\x00\x56')
     print("[ DEBUG ] \33[0;32m" + ser.readline().decode()[2:] + '\33[0m')
-
 def send_init_tnc(command, chan, cmd):
     length_command = len(command) - 1
     if length_command < 10:
