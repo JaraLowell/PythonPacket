@@ -581,83 +581,6 @@ ser.rtscts = False                  # disable hardware (RTS/CTS) flow control
 ser.dsrdtr = False                  # disable hardware (DSR/DTR) flow control
 ser.writeTimeout = 2                # timeout for write
 
-def logheard(call, cmd, info):
-    tnow = int(time.time())
-    # 'callsign' = ['name','jo locator if known',first heard,last heard,heard count,first connect, last connect, connect count];
-    #                  0              1              2           3           4           5             6             7
-    sindex = call.find('-')
-    if sindex > 1:
-        call = call[:sindex]
-
-    # testcallsign = re.search('[\\d]{0,1}[A-Z]{1,2}\\d([A-Z]{1,4}|\\d{3,3}|\\d{1,3}[A-Z])[A-Z]{0,5}', call.upper())
-    if len(call) < 7:
-        # call = testcallsign.group(0)
-        if cmd == 5:
-            if call in MHeard:
-                MHeard[call][3] = tnow
-                MHeard[call][4] += 1
-            else:
-                MHeard[call] = ['', '', tnow, tnow, 1, 0, 0, 0]
-                if MyCall == call:
-                    MHeard[call][0] = config.get('radio', 'sysop')
-                else:
-                    sendqueue.append([0,'New station registered with station call ' + call])
-        elif cmd == 6:
-            if call in MHeard:
-                if len(info) >= len(MHeard[call][1]) and str(info) != '':
-                    MHeard[call][1] = str(info)
-            else:
-                MHeard[call] = ['', str(info), tnow, tnow, 1, 0, 0, 0]
-            MHeard[call][4] += 1
-            MHeard[call][3] = tnow
-        elif cmd == 3:
-            if call in MHeard:
-                MHeard[call][6] = tnow
-                MHeard[call][4] += 1
-                MHeard[call][7] += 1
-                if MHeard[call][5] == 0:
-                    MHeard[call][5] = tnow
-    else:
-        print('[ DEBUG ] Log Error, Not a callsign > ' + call)
-
-
-def send_init_tnc(command, chan, cmd):
-    length_command = len(command) - 1
-    if length_command < 10:
-        hex_length_command = '0' + str(length_command)
-    else:
-        hex_length_command = str(length_command)
-
-    start_hex = '%02d' % (chan,) + '%02d' % (cmd,)
-    bytes_command = bytearray(command, 'utf-8')
-    hex_begin_bytes = bytearray.fromhex(start_hex)
-    hex_length_bytes = bytearray.fromhex(hex_length_command)
-    start_bytes = hex_begin_bytes + hex_length_bytes
-    all_bytes = start_bytes + bytes_command
-    return all_bytes
-
-def send_tnc(command, channel):
-    allbytes = []
-    allbytes.append('%02d' % channel)
-    allbytes.append('%02d' % 0)  # Info/CMD
-    txt_len = int(len(command) - 1)
-    allbytes.append(hex(txt_len)[2:].zfill(2))
-    for char in command:
-        ascii_val = ord(char)
-        allbytes.append(hex(ascii_val)[2:].zfill(2))
-    return bytearray.fromhex(''.join(allbytes))
-
-def send_tncC(command, channel):
-    allbytes = []
-    allbytes.append('%02d' % channel)
-    allbytes.append('%02d' % 1)  # Info/CMD
-    txt_len = int(len(command) - 1)
-    allbytes.append(hex(txt_len)[2:].zfill(2))
-    for char in command:
-        ascii_val = ord(char)
-        allbytes.append(hex(ascii_val)[2:].zfill(2))
-    return bytearray.fromhex(''.join(allbytes))
-
 
 
 async def go_serial():
@@ -740,7 +663,7 @@ async def go_serial():
                     elif 'CONNECTED' in data_decode:
                         # Channel chan_i got disconected
                         remote_station = data_decode.split(" ")[3]
-                        logheard(remote_station, 3, '')
+                        tncserial.logheard(MHeard, MyCall, sendqueue, remote_station, 3, '')
                         if ACTCHANNELS[chan_i][1] != remote_station:
                             ctext_file = 'ctext-' + remote_station + '.txt'
                             if os.path.isfile(MyPath + ctext_file):
@@ -763,7 +686,7 @@ async def go_serial():
                     # Monitor header/no info
                     data_decode = data_decode[2:-1]
                     callsign = data_decode.split(" ")[1]
-                    logheard(callsign, 5, '')
+                    tncserial.logheard(MHeard, MyCall, sendqueue, callsign, 5, '')
                     print(namechan + " \33[1;37m" + data_decode + "\33[0m")
                     await sendmsg(chan_i,'cmd4',data_decode)
                 elif data_int == 5:
@@ -779,7 +702,7 @@ async def go_serial():
                     if callsign not in MHeard:
                         heardnew = ' * NEW *'
 
-                    logheard(callsign, 5, '')
+                    tncserial.logheard(MHeard, MyCall, sendqueue, callsign, 5, '')
                     print(namechan + " \33[1;37m" + data_decode + heardnew + "\33[0m")
                     await sendmsg(chan_i,'cmd5',data_decode + heardnew)
                     heardnew = callsign
@@ -819,9 +742,9 @@ async def go_serial():
                                 locator = [LatLon2qth(lat, lon)[:-2],12]
 
                     if not locator:
-                         logheard(callsign, 6, '')
+                        tncserial.logheard(MHeard, MyCall, sendqueue, callsign, 6, '')
                     else:
-                         logheard(callsign, 6, locator[0])
+                        tncserial.logheard(MHeard, MyCall, sendqueue, callsign, 6, locator[0])
                     
                     heardnew = ''
                 elif data_int == 7:
@@ -883,12 +806,12 @@ async def go_serial():
                     if todo[0] == 9 or todo[0] == 10:
                         await sendmsg(todo[0],'cmd4',todo[1])
                     elif todo[0] > 19:
-                        beacon = send_tnc(todo[1], todo[0] - 20)
+                        beacon = tncserial.send_tnc(todo[1], todo[0] - 20)
                         ser.write(beacon)
                         tmp = ser.readline().decode()
                         await asyncio.sleep(pdelay)                       
                     else:
-                        beacon = send_tnc(todo[1] + '\r', todo[0])
+                        beacon = tncserial.send_tnc(todo[1] + '\r', todo[0])
                         ser.write(beacon)
                         tmp = ser.readline().decode()
                         await asyncio.sleep(pdelay)
@@ -959,7 +882,7 @@ async def menuhandle(chan, call, cmdtxt):
         sendtext = readfile('qrt.txt')
     elif reqcmd == 'D':                            
         # //DISC Disconnect
-        all_bytes = send_tncC('D', chan)
+        all_bytes = tncserial.send_tncC('D', chan)
         ser.write(all_bytes)
         tmp = ser.readline().decode()
     elif reqcmd == 'V':
@@ -1002,7 +925,7 @@ async def menuhandle(chan, call, cmdtxt):
     if len(sendtext) > 0:
         await textchunk(sendtext,chan,str(call))
         if reqcmd == 'Q':
-            all_bytes = send_tncC('D', chan)
+            all_bytes = tncserial.send_tncC('D', chan)
             ser.write(all_bytes)
             tmp = ser.readline().decode()
 
@@ -1226,16 +1149,16 @@ async def textchunk(cnktext , chn, call):
             tmp = cnktext[:164]
             cnktext = cnktext[164:]
             # sendqueue.append([chn + 20,tmp])
-            beacon = send_tnc(tmp, chn)
+            beacon = tncserial.send_tnc(tmp, chn)
             ser.write(beacon)
             tmp = ser.readline().decode()
         if len(cnktext) > 0:
-            beacon = send_tnc(cnktext, chn)
+            beacon = tncserial.send_tnc(cnktext, chn)
             ser.write(beacon)
             tmp = ser.readline().decode()
     else:
         # sendqueue.append([chn + 20,cnktext])
-        beacon = send_tnc(cnktext, chn)
+        beacon = tncserial.send_tnc(cnktext, chn)
         ser.write(beacon)
         tmp = ser.readline().decode()
 
@@ -1262,7 +1185,7 @@ if __name__ == "__main__":
     print("\33[0;33mWeb server files home folder set to " + os.getcwd() + os.path.sep + "www\33[0m")
 
     tncserial.init_tncinWa8ded(ser, sys)
-    init_tncConfig()
+    tncserial.init_tncConfig(ser, MyCall, channels, num2byte, sendqueue, BEACONTEXT)
 
     if config.get('radio', 'latitude') != '' and config.get('radio', 'longitude') != '':
         myqth = LatLon2qth(float(config.get('radio', 'latitude')),float(config.get('radio', 'longitude')))[:-2]

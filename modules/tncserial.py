@@ -1,3 +1,14 @@
+import time
+from datetime import date, datetime
+
+import configparser
+
+config = configparser.ConfigParser()
+config.read('./config.ini')
+
+today_date = date.today()
+time_now = datetime.now()
+
 # Set TNC in WA8DED Hostmode
 def init_tncinWa8ded(ser, sys):
     try:
@@ -19,7 +30,7 @@ def init_tncinWa8ded(ser, sys):
     ser.write(b'\x00\x01\x00\x56')
     print("[ DEBUG ] \33[0;32m" + ser.readline().decode()[2:] + '\33[0m')
     
-def init_tncConfig(ser, config, send_init_tnc, MyCall, channels, num2byte):
+def init_tncConfig(ser, MyCall, channels, num2byte, sendqueue, BEACONTEXT):
     global ACTCHANNELS
     ACTCHANNELS = {}
     print('\33[0;33mSetting TNC Configs...\33[0m')
@@ -68,3 +79,79 @@ def init_tncConfig(ser, config, send_init_tnc, MyCall, channels, num2byte):
             ser.readline()
     print('\33[0;33mTNC Active and listening...\33[0m')
     sendqueue.append([0,BEACONTEXT + ' @ ' + time.strftime("%H:%M", time.localtime())])
+    
+def send_init_tnc(command, chan, cmd):
+    length_command = len(command) - 1
+    if length_command < 10:
+        hex_length_command = '0' + str(length_command)
+    else:
+        hex_length_command = str(length_command)
+
+    start_hex = '%02d' % (chan,) + '%02d' % (cmd,)
+    bytes_command = bytearray(command, 'utf-8')
+    hex_begin_bytes = bytearray.fromhex(start_hex)
+    hex_length_bytes = bytearray.fromhex(hex_length_command)
+    start_bytes = hex_begin_bytes + hex_length_bytes
+    all_bytes = start_bytes + bytes_command
+    return all_bytes
+
+def send_tnc(command, channel):
+    allbytes = []
+    allbytes.append('%02d' % channel)
+    allbytes.append('%02d' % 0)  # Info/CMD
+    txt_len = int(len(command) - 1)
+    allbytes.append(hex(txt_len)[2:].zfill(2))
+    for char in command:
+        ascii_val = ord(char)
+        allbytes.append(hex(ascii_val)[2:].zfill(2))
+    return bytearray.fromhex(''.join(allbytes))
+
+def send_tncC(command, channel):
+    allbytes = []
+    allbytes.append('%02d' % channel)
+    allbytes.append('%02d' % 1)  # Info/CMD
+    txt_len = int(len(command) - 1)
+    allbytes.append(hex(txt_len)[2:].zfill(2))
+    for char in command:
+        ascii_val = ord(char)
+        allbytes.append(hex(ascii_val)[2:].zfill(2))
+    return bytearray.fromhex(''.join(allbytes))
+
+def logheard(MHeard, MyCall, sendqueue, call, cmd, info):
+    tnow = int(time.time())
+    # 'callsign' = ['name','jo locator if known',first heard,last heard,heard count,first connect, last connect, connect count];
+    #                  0              1              2           3           4           5             6             7
+    sindex = call.find('-')
+    if sindex > 1:
+        call = call[:sindex]
+
+    # testcallsign = re.search('[\\d]{0,1}[A-Z]{1,2}\\d([A-Z]{1,4}|\\d{3,3}|\\d{1,3}[A-Z])[A-Z]{0,5}', call.upper())
+    if len(call) < 7:
+        # call = testcallsign.group(0)
+        if cmd == 5:
+            if call in MHeard:
+                MHeard[call][3] = tnow
+                MHeard[call][4] += 1
+            else:
+                MHeard[call] = ['', '', tnow, tnow, 1, 0, 0, 0]
+                if MyCall == call:
+                    MHeard[call][0] = config.get('radio', 'sysop')
+                else:
+                    sendqueue.append([0,'New station registered with station call ' + call])
+        elif cmd == 6:
+            if call in MHeard:
+                if len(info) >= len(MHeard[call][1]) and str(info) != '':
+                    MHeard[call][1] = str(info)
+            else:
+                MHeard[call] = ['', str(info), tnow, tnow, 1, 0, 0, 0]
+            MHeard[call][4] += 1
+            MHeard[call][3] = tnow
+        elif cmd == 3:
+            if call in MHeard:
+                MHeard[call][6] = tnow
+                MHeard[call][4] += 1
+                MHeard[call][7] += 1
+                if MHeard[call][5] == 0:
+                    MHeard[call][5] = tnow
+    else:
+        print('[ DEBUG ] Log Error, Not a callsign > ' + call)
