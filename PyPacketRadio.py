@@ -240,13 +240,10 @@ async def sendmsg(chan, cmd, message):
 
 async def main():
     if config.get('meshtastic', 'plugin_enable') == 'True':
-        pub.subscribe(
-            on_meshtastic_message, "meshtastic.receive", loop=asyncio.get_event_loop()
-        )
-        pub.subscribe(
-            on_lost_meshtastic_connection,
-            "meshtastic.connection.lost",
-        )
+        pub.subscribe(on_meshtastic_message, "meshtastic.receive", loop=asyncio.get_event_loop())
+        pub.subscribe(on_meshtastic_connection, "meshtastic.connection.established")
+        pub.subscribe(on_lost_meshtastic_connection,"meshtastic.connection.lost")
+
     # Need add active channel here
     while True:
         text = await ainput("")
@@ -345,6 +342,12 @@ def on_lost_meshtastic_connection(interface):
     print("[LoraNet] Lost connection. Reconnecting...")
     connect_meshtastic(force_connect=True)
 
+def on_meshtastic_connection(interface, topic=pub.AUTO_TOPIC):
+    # called when we (re)connect to the radio
+    # defaults to broadcast, specify a destination ID if you wish
+    # interface.sendText("hello mesh")
+    print("[LoraNet] Connection Made...")
+
 def logLora(nodeID, info):
     tnow = int(time.time())
     if nodeID in LoraDB:
@@ -372,7 +375,8 @@ def logLora(nodeID, info):
         LoraDB[nodeID][5] = info[3] # altitude
         LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])
     
-def on_meshtastic_message(packet, loop=None):
+def on_meshtastic_message(packet, interface, loop=None):
+    # loop=None
     try:
         # print(yaml.dump(packet))
         global lora_lastmsg
@@ -492,7 +496,7 @@ def on_meshtastic_message(packet, loop=None):
                 if "rxSnr" in packet and packet['rxSnr'] is not None:
                     LoraDB[fromraw][11] = str(packet['rxSnr']) + 'dB'
 
-                if donoting == False and text_raws != '' and lora_lastmsg != text_raws:
+                if donoting == False and text_raws != '': # and lora_lastmsg != text_raws:
                     lora_lastmsg = text_raws
                     print("[LoraNet]\33[0;37m " + text_from + LoraDB[fromraw][10] + "\33[0m")
                     if "viaMqtt" in packet:
@@ -503,7 +507,7 @@ def on_meshtastic_message(packet, loop=None):
                             text_from = ' (Hops ' + str(LoraDB[fromraw][12]) + ')'
                             if "hopLimit" in packet:
                                 text_from = text_from[:-1] + '/' + str(packet["hopLimit"]) + ')'
-                        if LoraDB[fromraw][11] != '':
+                        if LoraDB[fromraw][11] != '' and MyLora != fromraw:
                             v = float(LoraDB[fromraw][11].replace('dB', ''))
                             text_from += f" ({round(v,1)}dB {value_to_graph(v)} )"
                             # ' (' + LoraDB[fromraw][11] + ')'
@@ -628,7 +632,7 @@ def init_tncinWa8ded():
     ser.readline()
     ser.write(b'\x4a\x48\x4f\x53\x54\x31\x0d')
     print('\33[0;33mSetting TNC in hostmode...\33[0m')
-    statustnc = ser.readline().decode().rstrip()
+    statustnc = ser.readline().decode(encoding='ASCII').rstrip()
     if statustnc != "JHOST1":
         print(statustnc)
         print("[ DEBUG ] NO TNC!!!!")
@@ -636,7 +640,7 @@ def init_tncinWa8ded():
     else:
         print("[ DEBUG ] \33[0;32m" + statustnc  + '\33[0m')
     ser.write(b'\x00\x01\x00\x56')
-    print("[ DEBUG ] \33[0;32m" + ser.readline().decode()[2:] + '\33[0m')
+    print("[ DEBUG ] \33[0;32m" + ser.readline().decode(encoding='ASCII')[2:] + '\33[0m')
 def send_init_tnc(command, chan, cmd):
     length_command = len(command) - 1
     if length_command < 10:
@@ -734,7 +738,7 @@ async def go_serial():
     sendbuffs = 0
     x = 0
     while True:
-        for x in range(6):
+        if x < 6:
             if polling == 1:
                 await asyncio.sleep(pdelay)
                 ser.write(b'\xff\x01\x00G')
@@ -939,7 +943,7 @@ async def go_serial():
                 tmp = int(psutil.Process(os.getpid()).memory_info().rss)
                 await sendmsg(chan_i,'cmd1','@MEM:' + str(tmp))
                 await asyncio.sleep(pdelay)
-            elif queing == 3:
+            elif queing > 2:
                 # Lets check if we have a queue to send and if so, send it
                 if len(sendqueue) > 0:
                     todo = (sendqueue[0])
@@ -967,6 +971,7 @@ async def go_serial():
                 else:
                     await sendmsg(100,'loraHeard',json.dumps(LoraDB).replace('\"','\\\"'))
                     sendbuffs = 0
+        print('str: ' + str(x) + ', queing: ' + str(queing))
 
 def replacesheet(text):
     if isinstance(text, bytes):

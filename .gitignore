@@ -3,3 +3,6 @@ LoraDB.pkl
 MHeard.pkl
 MoniLog.pk1
 ChanLog.pk1
+build/
+dist/
+*.spec
