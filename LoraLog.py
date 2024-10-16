@@ -49,7 +49,7 @@ def insert_colored_text(text_widget, text, color):
 import meshtastic.tcp_interface
 import meshtastic.serial_interface
 import base64
-import yaml
+# import yaml
 from pubsub import pub
 meshtastic_client = None
 lora_lastmsg = ''
@@ -177,220 +177,248 @@ def logLora(nodeID, info):
         LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])
     
 def on_meshtastic_message(packet, interface, loop=None):
-    # loop=None
-    try:
-        #print(yaml.dump(packet))
-        global lora_lastmsg
-        global tlast
-        donoting = True
-        ischat = False
-        if "decoded" in packet:
-            data = packet["decoded"]
-            text_from = ''
-            if "fromId" in packet and packet["fromId"] is not None:
-                text_from  = packet["fromId"][1:]
-                text_mqtt = ''
-                text_msgs = ''
-                fromraw = text_from
-                tnow = int(time.time())
-                if text_from in LoraDB:
-                    LoraDB[text_from][0] = tnow
-                    if LoraDB[text_from][1] != '':
-                        text_from = LoraDB[text_from][1] + " (" + LoraDB[text_from][2] + ")"
-                else:
-                    LoraDB[text_from] = [tnow, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '', -1]
-                    insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] New Node Logged ! #" + text_from + "\n", "#c24400")
+    #print(yaml.dump(packet))
+    global lora_lastmsg
+    global tlast
+    donoting = True
+    ischat = False
+    if "decoded" in packet:
+        data = packet["decoded"]
+        text_from = ''
+        if "fromId" in packet and packet["fromId"] is not None:
+            text_from  = packet["fromId"][1:]
+            if text_from == '':
+                #  mmm empty ID ? lets return
+                return
+            viaMqtt = False
+            text_msgs = ''
+            fromraw = text_from
+            tnow = int(time.time())
+            if text_from in LoraDB:
+                LoraDB[text_from][0] = tnow
+                if LoraDB[text_from][1] != '':
+                    text_from = LoraDB[text_from][1] + " (" + LoraDB[text_from][2] + ")"
+            else:
+                LoraDB[text_from] = [tnow, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '', -1]
+                insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] New Node Logged ! #" + text_from + "\n", "#c24400")
 
-                if "viaMqtt" in packet:
-                    LoraDB[fromraw][10] = ' via mqtt'
-                    text_mqtt = ' via mqtt'
-                else:
-                    LoraDB[fromraw][10] = ''
-                    # if MyLora != fromraw: print(yaml.dump(packet))
+            if "viaMqtt" in packet:
+                LoraDB[fromraw][10] = ' via mqtt'
+                viaMqtt = True
+            else:
+                LoraDB[fromraw][10] = ''
+                # if MyLora != fromraw: print(yaml.dump(packet))
 
-                # Lets Work the Msgs
-                if data["portnum"] == "TELEMETRY_APP":
-                    if "deviceMetrics" in  data["telemetry"]:
-                        text = data["telemetry"]["deviceMetrics"]
-                        text_raws = ''
-                        if "voltage" in text:
-                            text_raws += 'Power: ' + str(round(text["voltage"],2)) + 'v '
-                        if "batteryLevel" in text:
-                            text_raws += 'Battery: ' + str(text["batteryLevel"]) + '% '
-                        if "channelUtilization" in text:
-                            text_raws += 'ChUtil: ' + str(round(text["channelUtilization"],2)) + '% '
-                        if "airUtilTx" in text:
-                            text_raws += 'AirUtilTX (DutyCycle): ' + str(round(text["airUtilTx"],2)) + '% '
-                        if "uptimeSeconds" in text:
-                            text_raws += '\n' + (' ' * 11) + 'Uptime ' + ez_date(text["uptimeSeconds"])
-                        if text_raws != '':
-                            text_raws = 'Node Telemetry\n' + (' ' * 11) + text_raws
-                        else:
-                            text_raws = 'Node Telemetry'
+            # Lets Work the Msgs
+            if data["portnum"] == "TELEMETRY_APP":
+                if "deviceMetrics" in  data["telemetry"]:
+                    text = data["telemetry"]["deviceMetrics"]
+                    text_raws = ''
+                    if "voltage" in text:
+                        text_raws += 'Power: ' + str(round(text["voltage"],2)) + 'v '
+                    if "batteryLevel" in text:
+                        text_raws += 'Battery: ' + str(text["batteryLevel"]) + '% '
+                    if "channelUtilization" in text:
+                        text_raws += 'ChUtil: ' + str(round(text["channelUtilization"],2)) + '% '
+                    if "airUtilTx" in text:
+                        text_raws += 'AirUtilTX (DutyCycle): ' + str(round(text["airUtilTx"],2)) + '% '
+                    if "uptimeSeconds" in text:
+                        text_raws += '\n' + (' ' * 11) + 'Uptime ' + ez_date(text["uptimeSeconds"])
+                    if text_raws != '':
+                        text_raws = 'Node Telemetry\n' + (' ' * 11) + text_raws
                     else:
                         text_raws = 'Node Telemetry'
-                    donoting = False
-                elif data["portnum"] == "CHAT_APP":
-                    text = data["chat"]
-                    if "text" in text:
-                        text_msgs = str(text["text"].encode('ascii', 'xmlcharrefreplace'), 'ascii').rstrip()
-                        text_raws = text["text"]
-                        text_chns = 'Private'
-                        if "toId" in packet:
-                            if packet["toId"] == '^all':
-                                text_chns = text_chns = str(mylorachan[0].encode('ascii', 'xmlcharrefreplace'), 'ascii')
-
-                        if "channel" in packet:
-                            text_chns = str(mylorachan[packet["channel"]].encode('ascii', 'xmlcharrefreplace'), 'ascii')
-
-                        ischat = True
-                    else:
-                        text_raws = 'Node Chat Encrypted'
-                    donoting = False
-                elif data["portnum"] == "POSITION_APP":
-                    text = data["position"]
-                    if "altitude" in text:
-                        text_msgs = "Node Position "
-                        if "latitude" in text:
-                            text_msgs += "latitude " + str(round(text["latitude"],4)) + " "
-                        if "longitude" in text:
-                            text_msgs += "longitude " + str(round(text["longitude"],4)) + " "
-                        '''
-                        if "latitude" in text and "longitude" in text:
-                            qth = LatLon2qth(round(text["latitude"],6), round(text["longitude"],6))
-                            text_msgs += "(" + qth + ") "
-                        '''
-                        if "altitude" in text:
-                            text_msgs += "altitude " + str(text["altitude"]) + " meter"
-                        if "satsInView" in text:
-                            text_msgs += " (" + str(text["satsInView"]) + " satelites)"
-
-                        if("latitude" in text and "longitude" in text and LoraDB[MyLora][3] != 81.0 and LoraDB[MyLora][3] != 186.0 and MyLora != fromraw):
-                            text_msgs += "\n" + (' ' * 11) + "Distance: " + calc_gc(text["latitude"], text["longitude"], LoraDB[MyLora][3], LoraDB[MyLora][4])
-                            if fromraw in MapMarkers:
-                                MapMarkers[fromraw][0].set_position(round(text["latitude"],6), round(text["longitude"],6))
-                                MapMarkers[fromraw][0].set_text(LoraDB[fromraw][1])
-                        text_raws = text_msgs
-                        logLora(packet["fromId"][1:], ['POSITION_APP', text["latitude"], text["longitude"], text["altitude"]])
-                    else:
-                        text_raws = 'Node Position'
-                    donoting = False
-                elif data["portnum"] == "NODEINFO_APP":
-                    text = data["user"]
-                    if "shortName" in text:
-                        lora_sn = str(text["shortName"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
-                        lora_ln = str(text["longName"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
-                        lora_mc = text["macaddr"]
-                        lora_mo = text["hwModel"]
-                        logLora(packet["fromId"][1:], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
-                        if fromraw in MapMarkers:
-                            MapMarkers[fromraw][0].set_text(html.unescape(lora_sn))
-                        text_raws = "Node Info using hardware " + lora_mo
-                        text_from = LoraDB[packet["fromId"][1:]][1] + " (" + LoraDB[packet["fromId"][1:]][2] + ")"
-                    else:
-                        text_raws = 'Node Info'
-                    donoting = False
-                elif data["portnum"] == "TEXT_MESSAGE_APP" and "text" in data:
-                    text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace'), 'ascii').rstrip()
-                    text_raws = data["text"]
+                else:
+                    text_raws = 'Node Telemetry'
+                donoting = False
+            elif data["portnum"] == "CHAT_APP":
+                text = data["chat"]
+                if "text" in text:
+                    text_msgs = str(text["text"].encode('ascii', 'xmlcharrefreplace'), 'ascii').rstrip()
+                    text_raws = text["text"]
                     text_chns = 'Private'
                     if "toId" in packet:
                         if packet["toId"] == '^all':
-                            text_chns = str(mylorachan[0].encode('ascii', 'xmlcharrefreplace'), 'ascii')
+                            text_chns = text_chns = str(mylorachan[0])
 
                     if "channel" in packet:
-                        text_chns = str(mylorachan[packet["channel"]].encode('ascii', 'xmlcharrefreplace'), 'ascii')
+                        text_chns = str(mylorachan[packet["channel"]])
 
                     ischat = True
-                    donoting = False
-                elif data["portnum"] == "NEIGHBORINFO_APP":
-                    text_raws = 'Node Neighborinfo'
-                    if "neighborinfo" in data and "neighbors" in data["neighborinfo"]:
-                        text = data["neighborinfo"]["neighbors"]
-                        for neighbor in text:
-                            nodeid = hex(neighbor["nodeId"])[2:]
-                            if nodeid in LoraDB and LoraDB[nodeid][1] != '':
-                                nodeid = LoraDB[nodeid][1]
-                            else:
-                                nodeid = '!' + nodeid
-                            text_raws += '\n' + (' ' * 11) + nodeid
-                            if "snr" in neighbor:
-                                text_raws += ' (' + str(neighbor["snr"]) + 'dB)'
-                    donoting = False
                 else:
-                    text_raws = 'Node ' + (data["portnum"].split('_APP', 1)[0]).title()
-                    if MyLora != fromraw:
-                        donoting = False
+                    text_raws = 'Node Chat Encrypted'
+                donoting = False
+            elif data["portnum"] == "POSITION_APP":
+                text = data["position"]
+                if "altitude" in text:
+                    text_msgs = "Node Position "
+                    if "latitude" in text:
+                        text_msgs += "latitude " + str(round(text["latitude"],4)) + " "
+                    if "longitude" in text:
+                        text_msgs += "longitude " + str(round(text["longitude"],4)) + " "
+                    '''
+                    if "latitude" in text and "longitude" in text:
+                        qth = LatLon2qth(round(text["latitude"],6), round(text["longitude"],6))
+                        text_msgs += "(" + qth + ") "
+                    '''
+                    if "altitude" in text:
+                        text_msgs += "altitude " + str(text["altitude"]) + " meter"
+                    if "satsInView" in text:
+                        text_msgs += " (" + str(text["satsInView"]) + " satelites)"
 
-                # Cleanup and get ready to print
-                if data["portnum"] != "POSITION_APP" and data["portnum"] != "TEXT_MESSAGE_APP":
-                    logLora(packet["fromId"][1:],['UPDATETIME'])
+                    if("latitude" in text and "longitude" in text and LoraDB[MyLora][3] != 81.0 and LoraDB[MyLora][3] != 186.0 and MyLora != fromraw):
+                        text_msgs += "\n" + (' ' * 11) + "Distance: " + calc_gc(text["latitude"], text["longitude"], LoraDB[MyLora][3], LoraDB[MyLora][4])
+                        if fromraw in MapMarkers:
+                            MapMarkers[fromraw][0].set_position(round(text["latitude"],6), round(text["longitude"],6))
+                            MapMarkers[fromraw][0].set_text(LoraDB[fromraw][1])
+                    text_raws = text_msgs
+                    logLora(packet["fromId"][1:], ['POSITION_APP', text["latitude"], text["longitude"], text["altitude"]])
+                else:
+                    text_raws = 'Node Position'
+                donoting = False
+            elif data["portnum"] == "NODEINFO_APP":
+                text = data["user"]
+                if "shortName" in text:
+                    lora_sn = str(text["shortName"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
+                    lora_ln = str(text["longName"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
+                    lora_mc = text["macaddr"]
+                    lora_mo = text["hwModel"]
+                    logLora(packet["fromId"][1:], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
+                    if fromraw in MapMarkers:
+                        MapMarkers[fromraw][0].set_text(html.unescape(lora_sn))
+                    text_raws = "Node Info using hardware " + lora_mo
+                    text_from = LoraDB[packet["fromId"][1:]][1] + " (" + LoraDB[packet["fromId"][1:]][2] + ")"
+                else:
+                    text_raws = 'Node Info'
+                donoting = False
+            elif data["portnum"] == "TEXT_MESSAGE_APP" and "text" in data:
+                text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace'), 'ascii').rstrip()
+                text_raws = data["text"]
+                text_chns = 'Private'
+                if "toId" in packet:
+                    if packet["toId"] == '^all':
+                        text_chns = str(mylorachan[0])
 
-                if "snr" in packet and packet['snr'] is not None:
-                    LoraDB[fromraw][11] = str(packet['snr']) + 'dB'
+                if "channel" in packet:
+                    text_chns = str(mylorachan[packet["channel"]])
 
-                if "rxSnr" in packet and packet['rxSnr'] is not None:
-                    LoraDB[fromraw][11] = str(packet['rxSnr']) + 'dB'
-
-                # Lets work the map
+                ischat = True
+                donoting = False
+            elif data["portnum"] == "NEIGHBORINFO_APP":
+                text_raws = 'Node Neighborinfo'
+                listmaps = []
+                if fromraw not in MapMarkers and fromraw in LoraDB:
+                    MapMarkers[fromraw] = [None, True, tnow, None]
+                    MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8))                    
+                    # Delete old Paths if drawn
                 if fromraw in MapMarkers:
-                    MapMarkers[fromraw][2] = tnow
-                    if "viaMqtt" in packet and MapMarkers[fromraw][1] == False:
-                        MapMarkers[fromraw][1] = True
-                        MapMarkers[fromraw][0].change_icon(tk_mqtt)
-                    elif "viaMqtt" not in packet and MapMarkers[fromraw][1] == True:
-                        MapMarkers[fromraw][0].change_icon(tk_direct)
-                        MapMarkers[fromraw][1] = False
-                elif LoraDB[fromraw][3] != 81.0 and LoraDB[fromraw][4] != 186.0 and "viaMqtt" in packet:
-                    MapMarkers[fromraw] = ['', True, tnow]
-                    MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8))
-                elif LoraDB[fromraw][3] != 81.0 and LoraDB[fromraw][4] != 186.0 and "viaMqtt" not in packet:
-                    MapMarkers[fromraw] = ['', False, tnow]
-                    MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8))
+                    if len(MapMarkers[fromraw]) > 3 and MapMarkers[fromraw][3] is not None:
+                        MapMarkers[fromraw][3].delete()
+                        MapMarkers[fromraw][3] = None
+                        print("old path removed")
 
-                if donoting == False and text_raws != '' and MyLora != fromraw:
-                    print("[LoraNet]\33[0;37m " + text_from + LoraDB[fromraw][10] + "\33[0m")
-                    insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] ' + html.unescape(text_from) + ' [' + html.unescape(fromraw) + ']' + LoraDB[fromraw][10] + "\n", "#d1d1d1")
+                if "neighborinfo" in data and "neighbors" in data["neighborinfo"]:
+                    text = data["neighborinfo"]["neighbors"]
+                    for neighbor in text:
+                        nodeid = hex(neighbor["nodeId"])[2:]
+                        if nodeid in LoraDB and LoraDB[nodeid][1] != '':
+                            # Lets add to map ass well if we are not on map abd our db knows the station
+                            if nodeid not in MapMarkers:
+                                MapMarkers[nodeid] = [None, True, tnow, None]
+                                MapMarkers[nodeid][0] = map.set_marker(round(LoraDB[nodeid][3],6), round(LoraDB[nodeid][4],6), text=html.unescape(LoraDB[nodeid][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8))
+                            else:
+                                MapMarkers[nodeid][2] = tnow
+                            # Lets add to paths ass well if we are on map
+                            if fromraw in MapMarkers:
+                                pos = ( round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6) )
+                                listmaps.append(pos)
+                                pos = ( round(LoraDB[nodeid][3],6) , round(LoraDB[nodeid][4],6) )
+                                listmaps.append(pos)
+                            nodeid = LoraDB[nodeid][1]
+                        else:
+                            nodeid = '!' + nodeid
+                        text_raws += '\n' + (' ' * 11) + nodeid
+                        if "snr" in neighbor:
+                            text_raws += ' (' + str(neighbor["snr"]) + 'dB)'
+                    # Add Paths if we have any
+                    if fromraw in MapMarkers and len(listmaps) != 0:
+                        MapMarkers[fromraw][3] = map.set_path(listmaps, color="#006642", width=1)
+                        print("new path added")
+                donoting = False
+            else:
+                text_raws = 'Node ' + (data["portnum"].split('_APP', 1)[0]).title()
+                if MyLora != fromraw:
+                    donoting = False
+
+            # Cleanup and get ready to print
+            if data["portnum"] != "POSITION_APP" and data["portnum"] != "TEXT_MESSAGE_APP":
+                logLora(packet["fromId"][1:],['UPDATETIME'])
+
+            if "snr" in packet and packet['snr'] is not None:
+                LoraDB[fromraw][11] = str(packet['snr']) + 'dB'
+
+            if "rxSnr" in packet and packet['rxSnr'] is not None:
+                LoraDB[fromraw][11] = str(packet['rxSnr']) + 'dB'
+
+            # Lets work the map
+            if fromraw in MapMarkers:
+                MapMarkers[fromraw][2] = tnow
+                if viaMqtt == True and MapMarkers[fromraw][1] == False:
+                    MapMarkers[fromraw][1] = True
+                    MapMarkers[fromraw][0].change_icon(tk_mqtt)
+                elif viaMqtt == False and MapMarkers[fromraw][1] == True:
+                    MapMarkers[fromraw][0].change_icon(tk_direct)
+                    MapMarkers[fromraw][1] = False
+            elif LoraDB[fromraw][3] != 81.0 and LoraDB[fromraw][4] != 186.0 and viaMqtt == True:
+                MapMarkers[fromraw] = [None, True, tnow, None]
+                MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8))
+            elif LoraDB[fromraw][3] != 81.0 and LoraDB[fromraw][4] != 186.0 and viaMqtt == False:
+                MapMarkers[fromraw] = [None, False, tnow, None]
+                MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8))
+
+            text_from = html.unescape(text_from)
+            text_raws = html.unescape(text_raws)
+
+            if donoting == False and text_raws != '' and MyLora != fromraw:
+                print("[LoraNet]\33[0;37m " + text_from + LoraDB[fromraw][10] + "\33[0m")
+                insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + ' [' + fromraw + ']' + LoraDB[fromraw][10] + "\n", "#d1d1d1")
+                if ischat == True:
+                    insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] " + text_from + LoraDB[fromraw][10] + "\n", "#d1d1d1")
+                if viaMqtt == True:
+                    insert_colored_text(text_box1, (' ' * 11) + text_raws + '\n', "#c9a500")
                     if ischat == True:
-                        insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] " + html.unescape(text_from) + LoraDB[fromraw][10] + "\n", "#d1d1d1")
-                    if "viaMqtt" in packet:
-                        # _print('\33[0;32m' + (' ' * 21) + text_raws + '\33[0m')
-                        insert_colored_text(text_box1, (' ' * 11) + html.unescape(text_raws) + '\n', "#c9a500")
-                        if ischat == True:
-                            insert_colored_text(text_box3, (' ' * 11) + '[' + text_chns +'] ' + html.unescape(text_raws) + '\n', "#00c983")
-                    else:
-                        text_from = ''
-                        if LoraDB[fromraw][12] > 0:
-                            text_from = '\n' + (' ' * 11) + str(LoraDB[fromraw][12]) + ' hops '
-                        if LoraDB[fromraw][11] != '' and MyLora != fromraw:
-                            if text_from == '':
-                                text_from = '\n' + (' ' * 11)
-                            v = float(LoraDB[fromraw][11].replace('dB', ''))
-                            text_from += f"{round(v,1)}dB {value_to_graph(v)}"
+                        insert_colored_text(text_box3, (' ' * 11) + '[' + text_chns +'] ' + text_raws + '\n', "#00c983")
+                else:
+                    text_from = ''
+                    if LoraDB[fromraw][12] > 0:
+                        text_from = '\n' + (' ' * 11) + str(LoraDB[fromraw][12]) + ' hops '
+                    if LoraDB[fromraw][11] != '' and MyLora != fromraw:
+                        if text_from == '':
+                            text_from = '\n' + (' ' * 11)
+                        v = float(LoraDB[fromraw][11].replace('dB', ''))
+                        text_from += f"{round(v,1)}dB {value_to_graph(v)}"
 
-                        # _print('\33[0;33m' + (' ' * 21) + text_raws + text_from + '\33[0m')
-                        insert_colored_text(text_box1, (' ' * 11) + text_raws + text_from + '\n', "#00c983")
-                        if ischat == True:
-                            insert_colored_text(text_box3, (' ' * 11) + '[' + text_chns +'] ' + html.unescape(text_raws) + '\n', "#02bae8")
-                elif donoting == False and text_raws != '' and MyLora == fromraw:
-                    insert_colored_text(text_box2, "[" + time.strftime("%H:%M:%S", time.localtime()) + '] ' + html.unescape(text_from) + LoraDB[fromraw][10] + "\n", "#d1d1d1")
-                    insert_colored_text(text_box2, (' ' * 11) + html.unescape(text_raws) + '\n', "#00c983")
-        tnow = int(time.time())
-        if tnow > tlast + 900:
-            tlast = tnow
-            with open(LoraDBPath, 'wb') as f:
-                pickle.dump(LoraDB, f)
-            print('Saved Databases')
+                    insert_colored_text(text_box1, (' ' * 11) + text_raws + text_from + '\n', "#00c983")
+                    if ischat == True:
+                        insert_colored_text(text_box3, (' ' * 11) + '[' + text_chns +'] ' + text_raws + '\n', "#02bae8")
+            elif donoting == False and text_raws != '' and MyLora == fromraw:
+                insert_colored_text(text_box2, "[" + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + LoraDB[fromraw][10] + "\n", "#d1d1d1")
+                insert_colored_text(text_box2, (' ' * 11) + text_raws + '\n', "#00c983")
+    tnow = int(time.time())
+    if tnow > tlast + 900:
+        tlast = tnow
+        with open(LoraDBPath, 'wb') as f:
+            pickle.dump(LoraDB, f)
+        print('Saved Databases')
 
-            for nodeID in list(MapMarkers.keys()):
-                if MapMarkers[nodeID][2] < tnow - map_delete:
-                    print("[LoraNet] \33[1;31m" + nodeID + " removed from map\33[0m")
-                    MapMarkers[nodeID][0].delete()
-                    del MapMarkers[nodeID]
-
-            gc.collect()
-    except Exception as e:
-        print("[LoraNet] \33[1;31m" + repr(e))
+        for nodeID in list(MapMarkers.keys()):
+            if MapMarkers[nodeID][2] < tnow - map_delete:
+                print("[LoraNet] \33[1;31m" + nodeID + " removed from map\33[0m")
+                MapMarkers[nodeID][0].delete()
+                if len(MapMarkers[fromraw]) > 3 and MapMarkers[fromraw][3] is not None:
+                    MapMarkers[nodeID][3].delete()
+                del MapMarkers[nodeID]
+        gc.collect()
 
 def updatesnodes():
     info = ''
@@ -606,7 +634,7 @@ if __name__ == "__main__":
 
     # Create three text boxes with padding color
     text_box1 = create_text(frame, 0, 0, 30)
-    insert_colored_text(text_box1, "Meshtastic Lora Logger v 1.1 By Jara Lowell\n", "#02bae8")
+    insert_colored_text(text_box1, "Meshtastic Lora Logger v 1.2 By Jara Lowell\n", "#02bae8")
     text_box2 = create_text(frame, 1, 0, 10)
     text_box3 = create_text(frame, 2, 0, 10)
 
@@ -628,7 +656,7 @@ if __name__ == "__main__":
     map.grid(row=0, column=0, sticky='nsew')
 
     map.set_position(48.860381, 2.338594)
-    map.set_tile_server("http://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png")
+    map.set_tile_server(config.get('meshtastic', 'map_tileserver'))
     map.set_zoom(5)
     
     tk_icon = ImageTk.PhotoImage(Image.open("marker.png"))
