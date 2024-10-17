@@ -486,11 +486,12 @@ def updatesnodes():
                         LoraDB[nodeID][5] = tmp['altitude']
                     
                     if nodeID == MyLora:
-                        MapMarkers[MyLora] = [None, False, nodeLast, None]
-                        MapMarkers[MyLora][0] = map.set_marker(round(LoraDB[MyLora][3],6), round(LoraDB[MyLora][4],6), text=html.unescape(LoraDB[MyLora][1]), icon = tk_icon, text_color = '#00c983', font = ('Fixedsys', 8))
-                        map.set_position(round(LoraDB[nodeID][3],6), round(LoraDB[nodeID][4],6))
-                        map.set_zoom(11)
-                        print("my lat logn set " + str(round(LoraDB[nodeID][3],6)) + " " + str(round(LoraDB[nodeID][4],6)))
+                        if MyLora not in MapMarkers:
+                            MapMarkers[MyLora] = [None, False, nodeLast, None]
+                            MapMarkers[MyLora][0] = map.set_marker(round(LoraDB[MyLora][3],6), round(LoraDB[MyLora][4],6), text=html.unescape(LoraDB[MyLora][1]), icon = tk_icon, text_color = '#00c983', font = ('Fixedsys', 8))
+                            map.set_position(round(LoraDB[nodeID][3],6), round(LoraDB[nodeID][4],6))
+                            map.set_zoom(11)
+                            print("my lat logn set " + str(round(LoraDB[nodeID][3],6)) + " " + str(round(LoraDB[nodeID][4],6)))
 
                 if "viaMqtt" in info: LoraDB[nodeID][10] = ' via mqtt'
                 if "snr" in info and info['snr'] is not None: LoraDB[nodeID][11] = str(info['snr']) + 'dB'
