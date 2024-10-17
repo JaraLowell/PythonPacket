@@ -368,7 +368,9 @@ def on_meshtastic_message(packet, interface, loop=None):
                     # Add Paths if we have any
                     if fromraw in MapMarkers and has_pairs(listmaps):
                         try:
-                            MapMarkers[fromraw][3] = map.set_path(listmaps, color="#006642", width=2)
+                            # How can MapMarkers[fromraw][3] cause a IndexError: list index out of range
+                            if len(MapMarkers[fromraw]) > 3 and MapMarkers[fromraw][3] is None:
+                                MapMarkers[fromraw][3] = map.set_path(listmaps, color="#006642", width=2)
                         except Exception as e:
                             print("\33[0;31m " + repr(e) + "\33[1;37m\33[0m") 
 
@@ -442,9 +444,9 @@ def on_meshtastic_message(packet, interface, loop=None):
         for nodeID in list(MapMarkers.keys()):
             if MapMarkers[nodeID][2] < tnow - map_delete:
                 print("[LoraNet] \33[1;31m" + nodeID + " removed from map\33[0m")
-                MapMarkers[nodeID][0].delete()
                 if len(MapMarkers[fromraw]) > 3 and MapMarkers[fromraw][3] is not None:
                     MapMarkers[nodeID][3].delete()
+                MapMarkers[nodeID][0].delete()
                 del MapMarkers[nodeID]
         gc.collect()
 
