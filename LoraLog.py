@@ -20,6 +20,9 @@ import html
 def num2byte(number):
     return bytearray.fromhex("{0:#0{1}x}".format(number,4)[2:])
 
+def has_pairs(lst):
+    return len(lst) != 0 and len(lst) % 2 == 0
+
 config = configparser.ConfigParser()
 config.read('./config.ini')
 
@@ -106,6 +109,8 @@ def connect_meshtastic(force_connect=False):
     insert_colored_text(text_box1, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] Connected to " + nodeInfo['user']['id'] + " > "  + nodeInfo['user']['shortName'] + " / " + nodeInfo['user']['longName'] + " using a " + nodeInfo['user']['hwModel'] + "\n", "#c24400")
 
     MyLora = (nodeInfo['user']['id'])[1:]
+    root.wm_title("Meshtastic Lora Logger - " + html.unescape(LoraDB[MyLora][1]))
+
     logLora((nodeInfo['user']['id'])[1:], ['NODEINFO_APP', nodeInfo['user']['shortName'], nodeInfo['user']['longName'], nodeInfo['user']["macaddr"],nodeInfo['user']['hwModel']])
     # Lets get the Local Node's channels
     nodeInfo = meshtastic_client.getNode('^local')
@@ -224,8 +229,27 @@ def on_meshtastic_message(packet, interface, loop=None):
                         text_raws += 'AirUtilTX (DutyCycle): ' + str(round(text["airUtilTx"],2)) + '% '
                     if "uptimeSeconds" in text:
                         text_raws += '\n' + (' ' * 11) + 'Uptime ' + ez_date(text["uptimeSeconds"])
+
                     if text_raws != '':
                         text_raws = 'Node Telemetry\n' + (' ' * 11) + text_raws
+                    else:
+                        text_raws = 'Node Telemetry'
+                elif "localStats" in data["telemetry"]:
+                    text = data["telemetry"]["localStats"]
+                    text_raws = ''
+                    if "numPacketsTx" in text:
+                        text_raws += 'PacketsTx: ' + str(text["numPacketsTx"]) + ' '
+                    if "numPacketsRx" in text:
+                        text_raws += 'PacketsRx: ' + str(text["numPacketsRx"]) + ' '
+                    if "numPacketsRxBad" in text:
+                        text_raws += 'PacketsRxBad: ' + str(text["numPacketsRxBad"]) + ' '
+                    if "numOnlineNodes" in text and "numTotalNodes" in text:
+                        text_raws += 'Nodes: ' + str(text["numOnlineNodes"]) + '/' + str(text["numTotalNodes"]) + ' '
+                    
+                    if text_raws != '':
+                        if fromraw == MyLora:
+                            root.wm_title("Meshtastic Lora Logger - " + html.unescape(LoraDB[MyLora][1]) + ' (' + text_raws[:-1] + ')')
+                        text_raws = 'Node Telemetry\n' + (' ' * 11) + text_raws[:-1]
                     else:
                         text_raws = 'Node Telemetry'
                 else:
@@ -287,6 +311,8 @@ def on_meshtastic_message(packet, interface, loop=None):
                     if fromraw in MapMarkers:
                         MapMarkers[fromraw][0].set_text(html.unescape(lora_sn))
                     text_raws = "Node Info using hardware " + lora_mo
+                    if "isLicensed" in text and text["isLicensed"] == True:
+                        text_raws += " (Licensed)"
                     text_from = LoraDB[packet["fromId"][1:]][1] + " (" + LoraDB[packet["fromId"][1:]][2] + ")"
                 else:
                     text_raws = 'Node Info'
@@ -310,12 +336,11 @@ def on_meshtastic_message(packet, interface, loop=None):
                 if fromraw not in MapMarkers and fromraw in LoraDB:
                     MapMarkers[fromraw] = [None, True, tnow, None]
                     MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8))                    
-                    # Delete old Paths if drawn
+
                 if fromraw in MapMarkers:
                     if len(MapMarkers[fromraw]) > 3 and MapMarkers[fromraw][3] is not None:
                         MapMarkers[fromraw][3].delete()
                         MapMarkers[fromraw][3] = None
-                        print("old path removed")
 
                 if "neighborinfo" in data and "neighbors" in data["neighborinfo"]:
                     text = data["neighborinfo"]["neighbors"]
@@ -341,14 +366,17 @@ def on_meshtastic_message(packet, interface, loop=None):
                         if "snr" in neighbor:
                             text_raws += ' (' + str(neighbor["snr"]) + 'dB)'
                     # Add Paths if we have any
-                    if fromraw in MapMarkers and len(listmaps) != 0:
-                        MapMarkers[fromraw][3] = map.set_path(listmaps, color="#006642", width=1)
-                        print("new path added")
+                    if fromraw in MapMarkers and has_pairs(listmaps):
+                        try:
+                            MapMarkers[fromraw][3] = map.set_path(listmaps, color="#006642", width=2)
+                        except Exception as e:
+                            print("\33[0;31m " + repr(e) + "\33[1;37m\33[0m") 
+
                 donoting = False
             else:
                 text_raws = 'Node ' + (data["portnum"].split('_APP', 1)[0]).title()
-                if MyLora != fromraw:
-                    donoting = False
+                #if MyLora != fromraw:
+                #    donoting = False
 
             # Cleanup and get ready to print
             if data["portnum"] != "POSITION_APP" and data["portnum"] != "TEXT_MESSAGE_APP":
