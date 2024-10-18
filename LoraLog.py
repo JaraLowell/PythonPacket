@@ -55,7 +55,7 @@ def insert_colored_text(text_widget, text, color):
 import meshtastic.tcp_interface
 import meshtastic.serial_interface
 import base64
-import yaml
+# import yaml
 from pubsub import pub
 meshtastic_client = None
 lora_lastmsg = ''
@@ -185,10 +185,10 @@ def logLora(nodeID, info):
         LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])
     
 def on_meshtastic_message(packet, interface, loop=None):
-    #print(yaml.dump(packet))
+    # print(yaml.dump(packet))
     global lora_lastmsg
-    global tlast
     global MyLora
+    global MapMarkers
     global MyLoraText1
     global MyLoraText2
     donoting = True
@@ -219,6 +219,9 @@ def on_meshtastic_message(packet, interface, loop=None):
             else:
                 LoraDB[fromraw][10] = ''
                 # if MyLora != fromraw: print(yaml.dump(packet))
+
+            LoraDB[fromraw][12] = -1
+            if "hopStart" in packet: LoraDB[fromraw][12] = packet['hopStart']
 
             # Lets Work the Msgs
             if data["portnum"] == "TELEMETRY_APP":
@@ -446,22 +449,6 @@ def on_meshtastic_message(packet, interface, loop=None):
             elif donoting == False and text_raws != '' and MyLora == fromraw:
                 insert_colored_text(text_box2, "[" + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + LoraDB[fromraw][10] + "\n", "#d1d1d1")
                 insert_colored_text(text_box2, (' ' * 11) + text_raws + '\n', "#00c983")
-    tnow = int(time.time())
-    # update_active_nodes()
-    if tnow > tlast + 900:
-        tlast = tnow
-        with open(LoraDBPath, 'wb') as f:
-            pickle.dump(LoraDB, f)
-        print('Saved Databases')
-
-        for nodeID in list(MapMarkers.keys()):
-            if MapMarkers[nodeID][2] < tnow - map_delete:
-                print("[LoraNet] \33[1;31m" + nodeID + " removed from map\33[0m")
-                if len(MapMarkers[fromraw]) > 3 and MapMarkers[fromraw][3] is not None:
-                    MapMarkers[nodeID][3].delete()
-                MapMarkers[nodeID][0].delete()
-                del MapMarkers[nodeID]
-        gc.collect()
 
 def updatesnodes():
     info = ''
@@ -487,6 +474,7 @@ def updatesnodes():
                 if "longName" in tmp: LoraDB[nodeID][2] = str(tmp['longName'].encode('ascii', 'xmlcharrefreplace'), 'ascii').replace("\n", "")
                 if "macaddr" in tmp: LoraDB[nodeID][6] = str(tmp['macaddr'])
                 if "hwModel" in tmp: LoraDB[nodeID][7] = str(tmp['hwModel'])
+                LoraDB[nodeID][12] = -1
                 if "hopsAway" in info: LoraDB[nodeID][12] = info['hopsAway']
 
                 if "position" in info:
@@ -714,6 +702,9 @@ if __name__ == "__main__":
     MyLoraText2 = ''
 
     def update_active_nodes():
+        global tlast
+        global MapMarkers
+        global LoraDB
         tnow = int(time.time())
         current_view = text_box_middle.yview()
         # Sort the nodes by last seen time
@@ -736,12 +727,15 @@ if __name__ == "__main__":
                 else:
                     node_dist = ' '.ljust(9)
                 node_sig = LoraDB[node_id][11].rjust(10)
-                # text_box_middle.insert(tk.END, f" {node_name} - {node_time}\n")
+                # node_hop = ''
+                # if LoraDB[node_id][12] > 0:
+                #     node_hop = (str(LoraDB[node_id][12]) + ' Hops Away')
                 if MyLora != node_id:
                     if node_info[10] == ' via mqtt':
                         insert_colored_text(text_box_middle, ('─' * 14) + '\n', "#3d3d3d")
                         insert_colored_text(text_box_middle, f" {node_name}{node_time}\n", "#c9a500")
                         insert_colored_text(text_box_middle, f" {node_dist}\n", "#9d9d9d")
+                        # insert_colored_text(text_box_middle, f" {node_hop}\n", "#9d9d9d")
                         if node_id not in MapMarkers:
                             MapMarkers[node_id] = [None, True, tnow, None]
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8))
@@ -749,10 +743,29 @@ if __name__ == "__main__":
                         insert_colored_text(text_box_middle, ('─' * 14) + '\n', "#3d3d3d")
                         insert_colored_text(text_box_middle, f" {node_name}{node_time}\n", "#00c983")
                         insert_colored_text(text_box_middle, f" {node_dist}{node_sig}\n", "#9d9d9d")
+                        # insert_colored_text(text_box_middle, f" {node_hop}\n", "#9d9d9d")
                         if node_id not in MapMarkers:
                             MapMarkers[node_id] = [None, False, tnow, None]
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8))
+
         text_box_middle.yview_moveto(current_view[0])
+
+        # update_active_nodes()
+        if tnow > tlast + 900:
+            tlast = tnow
+            with open(LoraDBPath, 'wb') as f:
+                pickle.dump(LoraDB, f)
+            print('Saved Databases')
+
+            for nodeID in list(MapMarkers.keys()):
+                if MapMarkers[nodeID][2] < tnow - map_delete:
+                    print("[LoraNet] \33[1;31m" + nodeID + " removed from map\33[0m")
+                    if len(MapMarkers[nodeID]) > 3 and MapMarkers[nodeID][3] is not None:
+                        MapMarkers[nodeID][3].delete()
+                    MapMarkers[nodeID][0].delete()
+                    del MapMarkers[nodeID]
+            gc.collect()
+
         root.after(2000, update_active_nodes)    
     ### end
 
