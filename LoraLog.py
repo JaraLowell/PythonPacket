@@ -32,6 +32,8 @@ LoraDBPath = 'LoraDB.pkl'
 MapMarkers = {}
 
 MyLora = ''
+MyLoraText1 = ''
+MyLoraText2 = ''
 MyPath = os.getcwd() + os.path.sep + 'txtfiles' + os.path.sep
 mylorachan = {}
 tlast = int(time.time())
@@ -58,7 +60,6 @@ import base64
 # import yaml
 from pubsub import pub
 meshtastic_client = None
-lora_lastmsg = ''
 map_delete = int(config.get('meshtastic', 'mep_delete_time'))
 
 try:
@@ -186,13 +187,10 @@ def logLora(nodeID, info):
     
 def on_meshtastic_message(packet, interface, loop=None):
     # print(yaml.dump(packet))
-    global lora_lastmsg
-    global MyLora
-    global MapMarkers
-    global MyLoraText1
-    global MyLoraText2
+    global MyLora, MyLoraText1, MyLoraText2
     donoting = True
     ischat = False
+    tnow = int(time.time())
     if "decoded" in packet:
         data = packet["decoded"]
         text_from = ''
@@ -204,7 +202,6 @@ def on_meshtastic_message(packet, interface, loop=None):
             viaMqtt = False
             text_msgs = ''
             fromraw = text_from
-            tnow = int(time.time())
             if text_from in LoraDB:
                 LoraDB[text_from][0] = tnow
                 if LoraDB[text_from][1] != '':
@@ -614,7 +611,6 @@ if __name__ == "__main__":
         sys.exit()
 
     # Initialize the main window
-    
     def create_text(frame, row, column, frheight, frwidth):
         # Create a frame with a black background to simulate padding color
         padding_frame = tk.Frame(frame, background="#121212", padx=2, pady=2)
@@ -643,6 +639,11 @@ if __name__ == "__main__":
     root.resizable(True, True)
     root.iconbitmap("mesh.ico")
     root.protocol('WM_DELETE_WINDOW', on_closing)
+
+    # Map MArker Images
+    tk_icon = ImageTk.PhotoImage(Image.open("marker.png"))
+    tk_direct = ImageTk.PhotoImage(Image.open("marker-green.png"))
+    tk_mqtt = ImageTk.PhotoImage(Image.open("marker-orange.png"))
 
     my_msg = tk.StringVar()  # For the messages to be sent.
     my_msg.set("")
@@ -688,7 +689,6 @@ if __name__ == "__main__":
     map = TkinterMapView(frame_right, padx=0, pady=0, bg_color='#121212')
     map.grid(row=0, column=0, sticky='nsew')
 
-    ### From copilot
     frame_middle = tk.Frame(frame, bg="#242424", borderwidth=0, highlightthickness=0, padx=0, pady=0)
     frame_middle.grid(row=0, column=2, rowspan=5, columnspan=1, padx=0, pady=0, sticky='nsew')
     frame_middle.grid_rowconfigure(0, weight=1)
@@ -698,13 +698,8 @@ if __name__ == "__main__":
     text_box_middle = create_text(frame_middle, 0, 0, 0, 21)
 
     # Function to update the middle frame with the last 30 active nodes
-    MyLoraText1 = ''
-    MyLoraText2 = ''
-
     def update_active_nodes():
-        global tlast
-        global MapMarkers
-        global LoraDB
+        global MyLora, MyLoraText1, MyLoraText2, tlast, MapMarkers, LoraDB
         tnow = int(time.time())
         current_view = text_box_middle.yview()
         # Sort the nodes by last seen time
@@ -718,7 +713,6 @@ if __name__ == "__main__":
         text_box_middle.mark_set(LoraDB[MyLora][1], "1.0")
 
         for node_id, node_info in sorted_nodes:
-            last_seen = datetime.fromtimestamp(node_info[0]).strftime('%Y-%m-%d %H:%M:%S')
             if tnow - node_info[0] < map_delete:
                 node_name = node_info[1].ljust(9)
                 node_time = ez_date(tnow - node_info[0]).rjust(10)
@@ -747,25 +741,20 @@ if __name__ == "__main__":
                         if node_id not in MapMarkers:
                             MapMarkers[node_id] = [None, False, tnow, None]
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8))
+            elif tnow - node_info[0] > map_delete:
+                if node_id in MapMarkers:
+                    if len(MapMarkers[node_id]) > 3 and MapMarkers[node_id][3] is not None:
+                        MapMarkers[node_id][3].delete()
+                    MapMarkers[node_id][0].delete()
+                    del MapMarkers[node_id]
 
         text_box_middle.yview_moveto(current_view[0])
-
-        # update_active_nodes()
         if tnow > tlast + 900:
             tlast = tnow
             with open(LoraDBPath, 'wb') as f:
                 pickle.dump(LoraDB, f)
             print('Saved Databases')
-
-            for nodeID in list(MapMarkers.keys()):
-                if MapMarkers[nodeID][2] < tnow - map_delete:
-                    print("[LoraNet] \33[1;31m" + nodeID + " removed from map\33[0m")
-                    if len(MapMarkers[nodeID]) > 3 and MapMarkers[nodeID][3] is not None:
-                        MapMarkers[nodeID][3].delete()
-                    MapMarkers[nodeID][0].delete()
-                    del MapMarkers[nodeID]
             gc.collect()
-
         root.after(2000, update_active_nodes)    
     ### end
 
@@ -773,10 +762,6 @@ if __name__ == "__main__":
     map.set_tile_server(config.get('meshtastic', 'map_tileserver'))
     map.set_zoom(5)
     
-    tk_icon = ImageTk.PhotoImage(Image.open("marker.png"))
-    tk_direct = ImageTk.PhotoImage(Image.open("marker-green.png"))
-    tk_mqtt = ImageTk.PhotoImage(Image.open("marker-orange.png"))
-
     root.after(2000, update_active_nodes)  # Schedule the next update in 30 seconds
     root.meshtastic_interface = connect_meshtastic()
 
