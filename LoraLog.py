@@ -46,13 +46,16 @@ if os.path.exists(LoraDBPath):
 def insert_colored_text(text_widget, text, color):
     text_widget.tag_configure(color, foreground=color)
     text_widget.insert(tk.END, text, color)
-    text_widget.see(tk.END)
+    if ".frame5" not in str(text_widget):
+        text_widget.see(tk.END)
+    # else:
+    #     text_widget.see(LoraDB[MyLora][1])
 
 #----------------------------------------------------------- Meshtastic Lora Con ------------------------------------------------------------------------
 import meshtastic.tcp_interface
 import meshtastic.serial_interface
 import base64
-# import yaml
+import yaml
 from pubsub import pub
 meshtastic_client = None
 lora_lastmsg = ''
@@ -78,7 +81,7 @@ def connect_meshtastic(force_connect=False):
         return meshtastic_client
     meshtastic_client = None
     # Initialize Meshtastic interface
-    retry_limit = 3
+    retry_limit = 10
     attempts = 1
     successful = False
     target_host = config.get('meshtastic', 'host')
@@ -99,7 +102,7 @@ def connect_meshtastic(force_connect=False):
             attempts += 1
             if attempts <= retry_limit:
                 print("[LoraNet] Attempt #{attempts-1} failed. Retrying in {attempts} secs... {e}")
-                time.sleep(attempts)
+                time.sleep(attempts * 3)
             else:
                 print("[LoraNet] Could not connect: {e}")
                 return None
@@ -185,6 +188,9 @@ def on_meshtastic_message(packet, interface, loop=None):
     #print(yaml.dump(packet))
     global lora_lastmsg
     global tlast
+    global MyLora
+    global MyLoraText1
+    global MyLoraText2
     donoting = True
     ischat = False
     if "decoded" in packet:
@@ -234,6 +240,9 @@ def on_meshtastic_message(packet, interface, loop=None):
                         text_raws = 'Node Telemetry\n' + (' ' * 11) + text_raws
                     else:
                         text_raws = 'Node Telemetry'
+                    
+                    if MyLora == fromraw:
+                        MyLoraText1 = (' ChUtil').ljust(13) + str(round(text["channelUtilization"],2)).rjust(6) + '%\n' + (' AirUtilTX').ljust(13) + str(round(text["airUtilTx"],2)).rjust(6) + '%\n' + (' Power').ljust(13) + str(round(text["voltage"],2)).rjust(6) + 'v\n' + (' Battery').ljust(13) + str(text["batteryLevel"]).rjust(6) + '%\n'
                 elif "localStats" in data["telemetry"]:
                     text = data["telemetry"]["localStats"]
                     text_raws = ''
@@ -252,6 +261,9 @@ def on_meshtastic_message(packet, interface, loop=None):
                         text_raws = 'Node Telemetry\n' + (' ' * 11) + text_raws[:-1]
                     else:
                         text_raws = 'Node Telemetry'
+                    
+                    if MyLora == fromraw:
+                        MyLoraText2 = (' PacketsTx').ljust(13) + str(text["numPacketsTx"]).rjust(7) + '\n' + (' PacketsRx').ljust(13) + str(text["numPacketsRx"]).rjust(7) + '\n' + (' Rx Bad').ljust(13) + str(text["numPacketsRxBad"]).rjust(7) + '\n' + (' Nodes').ljust(13) + str(text["numOnlineNodes"]).rjust(7) + '\n'
                 else:
                     text_raws = 'Node Telemetry'
                 donoting = False
@@ -291,7 +303,7 @@ def on_meshtastic_message(packet, interface, loop=None):
                         text_msgs += " (" + str(text["satsInView"]) + " satelites)"
 
                     if("latitude" in text and "longitude" in text and LoraDB[MyLora][3] != 81.0 and LoraDB[MyLora][3] != 186.0 and MyLora != fromraw):
-                        text_msgs += "\n" + (' ' * 11) + "Distance: " + calc_gc(text["latitude"], text["longitude"], LoraDB[MyLora][3], LoraDB[MyLora][4])
+                        text_msgs += "\n" + (' ' * 11) + "Distance: ±" + calc_gc(text["latitude"], text["longitude"], LoraDB[MyLora][3], LoraDB[MyLora][4])
                         if fromraw in MapMarkers:
                             MapMarkers[fromraw][0].set_position(round(text["latitude"],6), round(text["longitude"],6))
                             MapMarkers[fromraw][0].set_text(LoraDB[fromraw][1])
@@ -435,6 +447,7 @@ def on_meshtastic_message(packet, interface, loop=None):
                 insert_colored_text(text_box2, "[" + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + LoraDB[fromraw][10] + "\n", "#d1d1d1")
                 insert_colored_text(text_box2, (' ' * 11) + text_raws + '\n', "#00c983")
     tnow = int(time.time())
+    # update_active_nodes()
     if tnow > tlast + 900:
         tlast = tnow
         with open(LoraDBPath, 'wb') as f:
@@ -520,7 +533,7 @@ def ez_date(d):
         val = f"{temp} minute{'s' if temp > 1 else ''}"
     else:
         temp = int(ts)
-        val = "a few second's"
+        val = "Just now"
     return val
 
 def LatLon2qth(latitude, longitude):
@@ -577,7 +590,7 @@ def calc_gc(end_lat, end_long, start_lat, start_long):
 
     c = math.atan(x/y)
 
-    return f"± {round(EARTH_R*c,1)} Km"
+    return f"{round(EARTH_R*c,1)}Km"
 
 def is_hour_between(start, end):
     now = datetime.now().hour
@@ -614,7 +627,7 @@ if __name__ == "__main__":
 
     # Initialize the main window
     
-    def create_text(frame, row, column, frheight):
+    def create_text(frame, row, column, frheight, frwidth):
         # Create a frame with a black background to simulate padding color
         padding_frame = tk.Frame(frame, background="#121212", padx=2, pady=2)
         padding_frame.grid(row=row, column=column, rowspan=1, columnspan=1, padx=0, pady=0, sticky='nsew')
@@ -624,7 +637,7 @@ if __name__ == "__main__":
         padding_frame.grid_columnconfigure(0, weight=1)
         
         # Create a text widget inside the frame
-        text_area = tk.Text(padding_frame, wrap=tk.WORD, width=100, height=frheight, bg='#242424', fg='#dddddd', font=('Fixedsys', 10))
+        text_area = tk.Text(padding_frame, wrap=tk.WORD, width=frwidth, height=frheight, bg='#242424', fg='#dddddd', font=('Fixedsys', 10))
         text_area.grid(row=0, column=0, sticky='nsew')
         return text_area
 
@@ -658,16 +671,17 @@ if __name__ == "__main__":
     frame.grid_rowconfigure(3, weight=0)
     frame.grid_columnconfigure(0, weight=0)
     frame.grid_columnconfigure(1, weight=1)
+    frame.grid_columnconfigure(2, weight=0)
 
     # Configure grid layout for the root window
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(0, weight=1)
 
     # Create three text boxes with padding color
-    text_box1 = create_text(frame, 0, 0, 30)
+    text_box1 = create_text(frame, 0, 0, 30, 100)
     insert_colored_text(text_box1, "Meshtastic Lora Logger v 1.2 By Jara Lowell\n", "#02bae8")
-    text_box2 = create_text(frame, 1, 0, 10)
-    text_box3 = create_text(frame, 2, 0, 10)
+    text_box2 = create_text(frame, 1, 0, 10, 100)
+    text_box3 = create_text(frame, 2, 0, 10, 100)
 
     padding_frame = tk.LabelFrame(frame, background="#242424", padx=0, pady=4, text=my_label.get(), bg='#242424', fg='#999999', font=('Fixedsys', 10), borderwidth=0, highlightthickness=0, labelanchor='n')
     padding_frame.grid(row=4, column=0, rowspan=1, columnspan=1, padx=0, pady=0, sticky="nsew")
@@ -678,13 +692,69 @@ if __name__ == "__main__":
     text_box4.grid(row=4, column=0)
     text_box4.bind("<Return>", send)
 
-    frame_right = tk.Frame(frame, bg="#242424", borderwidth=0, highlightthickness=0, highlightcolor="#242424", highlightbackground="#242424", background="#242424", padx=2, pady=2)
+    frame_right = tk.Frame(frame, bg="#242424", borderwidth=0, highlightthickness=0, highlightcolor="#242424", highlightbackground="#242424", padx=2, pady=2)
     frame_right.grid(row=0, column=1, rowspan=5, columnspan=1, padx=0, pady=0, sticky='nsew')
     frame_right.grid_rowconfigure(0, weight=1)
     frame_right.grid_columnconfigure(0, weight=1)
 
     map = TkinterMapView(frame_right, padx=0, pady=0, bg_color='#121212')
     map.grid(row=0, column=0, sticky='nsew')
+
+    ### From copilot
+    frame_middle = tk.Frame(frame, bg="#242424", borderwidth=0, highlightthickness=0, padx=0, pady=0)
+    frame_middle.grid(row=0, column=2, rowspan=5, columnspan=1, padx=0, pady=0, sticky='nsew')
+    frame_middle.grid_rowconfigure(0, weight=1)
+    frame_middle.grid_columnconfigure(0, weight=0)
+
+    # Create a text widget inside the middle frame to display the last 30 active nodes
+    text_box_middle = create_text(frame_middle, 0, 0, 0, 21)
+
+    # Function to update the middle frame with the last 30 active nodes
+    MyLoraText1 = ''
+    MyLoraText2 = ''
+
+    def update_active_nodes():
+        tnow = int(time.time())
+        current_view = text_box_middle.yview()
+        # Sort the nodes by last seen time
+        sorted_nodes = sorted(LoraDB.items(), key=lambda item: item[1][0], reverse=True)[:30]
+        text_box_middle.delete("1.0", tk.END)
+        insert_colored_text(text_box_middle, "\n " + LoraDB[MyLora][1] + "\n", "#da0000")
+        if MyLoraText1 != '':
+            insert_colored_text(text_box_middle, MyLoraText1, "#d1d1d1")
+        if MyLoraText2 != '':
+            insert_colored_text(text_box_middle, MyLoraText2, "#d1d1d1")
+        text_box_middle.mark_set(LoraDB[MyLora][1], "1.0")
+
+        for node_id, node_info in sorted_nodes:
+            last_seen = datetime.fromtimestamp(node_info[0]).strftime('%Y-%m-%d %H:%M:%S')
+            if tnow - node_info[0] < map_delete:
+                node_name = node_info[1].ljust(9)
+                node_time = ez_date(tnow - node_info[0]).rjust(10)
+                if LoraDB[node_id][3] != 81.0 and LoraDB[node_id][3] != 186.0:
+                    node_dist = calc_gc(LoraDB[node_id][3], LoraDB[node_id][4], LoraDB[MyLora][3], LoraDB[MyLora][4]).ljust(9)
+                else:
+                    node_dist = ' '.ljust(9)
+                node_sig = LoraDB[node_id][11].rjust(10)
+                # text_box_middle.insert(tk.END, f" {node_name} - {node_time}\n")
+                if MyLora != node_id:
+                    if node_info[10] == ' via mqtt':
+                        insert_colored_text(text_box_middle, ('─' * 14) + '\n', "#3d3d3d")
+                        insert_colored_text(text_box_middle, f" {node_name}{node_time}\n", "#c9a500")
+                        insert_colored_text(text_box_middle, f" {node_dist}\n", "#9d9d9d")
+                        if node_id not in MapMarkers:
+                            MapMarkers[node_id] = [None, True, tnow, None]
+                            MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8))
+                    else:
+                        insert_colored_text(text_box_middle, ('─' * 14) + '\n', "#3d3d3d")
+                        insert_colored_text(text_box_middle, f" {node_name}{node_time}\n", "#00c983")
+                        insert_colored_text(text_box_middle, f" {node_dist}{node_sig}\n", "#9d9d9d")
+                        if node_id not in MapMarkers:
+                            MapMarkers[node_id] = [None, False, tnow, None]
+                            MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8))
+        text_box_middle.yview_moveto(current_view[0])
+        root.after(2000, update_active_nodes)    
+    ### end
 
     map.set_position(48.860381, 2.338594)
     map.set_tile_server(config.get('meshtastic', 'map_tileserver'))
@@ -694,6 +764,7 @@ if __name__ == "__main__":
     tk_direct = ImageTk.PhotoImage(Image.open("marker-green.png"))
     tk_mqtt = ImageTk.PhotoImage(Image.open("marker-orange.png"))
 
+    root.after(2000, update_active_nodes)  # Schedule the next update in 30 seconds
     root.meshtastic_interface = connect_meshtastic()
 
     try:
