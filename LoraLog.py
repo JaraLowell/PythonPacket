@@ -187,7 +187,7 @@ def logLora(nodeID, info):
     
 def on_meshtastic_message(packet, interface, loop=None):
     # print(yaml.dump(packet))
-    global MyLora, MyLoraText1, MyLoraText2
+    global MyLora, MyLoraText1, MyLoraText2, LoraDB, MapMarkers
     donoting = True
     ischat = False
     tnow = int(time.time())
@@ -390,7 +390,7 @@ def on_meshtastic_message(packet, interface, loop=None):
             else:
                 text_raws = 'Node ' + (data["portnum"].split('_APP', 1)[0]).title()
                 #if MyLora != fromraw:
-                #    donoting = False
+                donoting = False
 
             # Cleanup and get ready to print
             if data["portnum"] != "POSITION_APP" and data["portnum"] != "TEXT_MESSAGE_APP":
@@ -444,8 +444,11 @@ def on_meshtastic_message(packet, interface, loop=None):
                     if ischat == True:
                         insert_colored_text(text_box3, (' ' * 11) + '[' + text_chns +'] ' + text_raws + '\n', "#02bae8")
             elif donoting == False and text_raws != '' and MyLora == fromraw:
+                print("[LoraNet]\33[0;37m " + text_from + LoraDB[fromraw][10] + "\33[0m")
                 insert_colored_text(text_box2, "[" + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + LoraDB[fromraw][10] + "\n", "#d1d1d1")
                 insert_colored_text(text_box2, (' ' * 11) + text_raws + '\n', "#00c983")
+        else:
+            print("[LoraNet] No ID in packet")
 
 def updatesnodes():
     info = ''
