@@ -350,7 +350,7 @@ def on_meshtastic_message(packet, interface, loop=None):
                 listmaps = []
                 if fromraw not in MapMarkers and fromraw in LoraDB:
                     MapMarkers[fromraw] = [None, True, tnow, None]
-                    MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8))                    
+                    MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=fromraw, command = click_command)
 
                 if fromraw in MapMarkers:
                     if len(MapMarkers[fromraw]) > 3 and MapMarkers[fromraw][3] is not None:
@@ -365,7 +365,7 @@ def on_meshtastic_message(packet, interface, loop=None):
                             # Lets add to map ass well if we are not on map abd our db knows the station
                             if nodeid not in MapMarkers:
                                 MapMarkers[nodeid] = [None, True, tnow, None]
-                                MapMarkers[nodeid][0] = map.set_marker(round(LoraDB[nodeid][3],6), round(LoraDB[nodeid][4],6), text=html.unescape(LoraDB[nodeid][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8))
+                                MapMarkers[nodeid][0] = map.set_marker(round(LoraDB[nodeid][3],6), round(LoraDB[nodeid][4],6), text=html.unescape(LoraDB[nodeid][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=nodeid, command = click_command)
                             else:
                                 MapMarkers[nodeid][2] = tnow
                             # Lets add to paths ass well if we are on map
@@ -416,10 +416,10 @@ def on_meshtastic_message(packet, interface, loop=None):
                     MapMarkers[fromraw][1] = False
             elif LoraDB[fromraw][3] != 81.0 and LoraDB[fromraw][4] != 186.0 and viaMqtt == True:
                 MapMarkers[fromraw] = [None, True, tnow, None]
-                MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8))
+                MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=fromraw, command = click_command)
             elif LoraDB[fromraw][3] != 81.0 and LoraDB[fromraw][4] != 186.0 and viaMqtt == False:
                 MapMarkers[fromraw] = [None, False, tnow, None]
-                MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8))
+                MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8), data=fromraw, command = click_command)
 
             text_from = html.unescape(text_from)
             text_raws = html.unescape(text_raws)
@@ -492,7 +492,7 @@ def updatesnodes():
                     if nodeID == MyLora:
                         if MyLora not in MapMarkers:
                             MapMarkers[MyLora] = [None, False, nodeLast, None]
-                            MapMarkers[MyLora][0] = map.set_marker(round(LoraDB[MyLora][3],6), round(LoraDB[MyLora][4],6), text=html.unescape(LoraDB[MyLora][1]), icon = tk_icon, text_color = '#00c983', font = ('Fixedsys', 8))
+                            MapMarkers[MyLora][0] = map.set_marker(round(LoraDB[MyLora][3],6), round(LoraDB[MyLora][4],6), text=html.unescape(LoraDB[MyLora][1]), icon = tk_icon, text_color = '#00c983', font = ('Fixedsys', 8), data=MyLora, command = click_command)
                             map.set_position(round(LoraDB[nodeID][3],6), round(LoraDB[nodeID][4],6))
                             map.set_zoom(11)
                             print("my lat logn set " + str(round(LoraDB[nodeID][3],6)) + " " + str(round(LoraDB[nodeID][4],6)))
@@ -695,6 +695,11 @@ if __name__ == "__main__":
     map = TkinterMapView(frame_right, padx=0, pady=0, bg_color='#121212')
     map.grid(row=0, column=0, sticky='nsew')
 
+    def click_command(marker):
+        print(marker.text)
+        print(marker.data)
+        print("Clicked on Marker")
+
     frame_middle = tk.Frame(frame, bg="#242424", borderwidth=0, highlightthickness=0, padx=0, pady=0)
     frame_middle.grid(row=0, column=2, rowspan=5, columnspan=1, padx=0, pady=0, sticky='nsew')
     frame_middle.grid_rowconfigure(0, weight=1)
@@ -738,7 +743,7 @@ if __name__ == "__main__":
                         # insert_colored_text(text_box_middle, f" {node_hop}\n", "#9d9d9d")
                         if node_id not in MapMarkers:
                             MapMarkers[node_id] = [None, True, tnow, None]
-                            MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8))
+                            MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
                     else:
                         insert_colored_text(text_box_middle, ('─' * 14) + '\n', "#3d3d3d")
                         insert_colored_text(text_box_middle, f" {node_name}{node_time}\n", "#00c983")
@@ -746,7 +751,7 @@ if __name__ == "__main__":
                         # insert_colored_text(text_box_middle, f" {node_hop}\n", "#9d9d9d")
                         if node_id not in MapMarkers:
                             MapMarkers[node_id] = [None, False, tnow, None]
-                            MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8))
+                            MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
             elif tnow - node_info[0] > map_delete:
                 if node_id in MapMarkers:
                     if len(MapMarkers[node_id]) > 3 and MapMarkers[node_id][3] is not None:
