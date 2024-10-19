@@ -319,6 +319,9 @@ def on_meshtastic_message(packet, interface, loop=None):
                     lora_ln = str(text["longName"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
                     lora_mc = text["macaddr"]
                     lora_mo = text["hwModel"]
+                    if lora_sn in lora_ln and "Meshtastic" in lora_ln:
+                        if LoraDB[fromraw][1] == '': lora_sn = LoraDB[fromraw][1]
+                        if LoraDB[fromraw][2] == '': lora_ln = LoraDB[fromraw][2]
                     logLora(packet["fromId"][1:], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
                     if fromraw in MapMarkers:
                         MapMarkers[fromraw][0].set_text(html.unescape(lora_sn))
