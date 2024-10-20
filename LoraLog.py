@@ -17,6 +17,13 @@ import configparser
 import pickle
 import html
 
+
+'''
+Fix sub parts if they brake a main part install > pip install --upgrade setuptools <sub tool name>
+Upgrade the Meshtastic Python Library           > pip install --upgrade meshtastic
+Build the build                                 > pyinstaller --icon=mesh.ico -F --onefile --noconsole LoraLog.py
+'''
+
 def num2byte(number):
     return bytearray.fromhex("{0:#0{1}x}".format(number,4)[2:])
 
@@ -45,14 +52,21 @@ if os.path.exists(LoraDBPath):
         LoraDB = pickle.load(f)
 
 # Function to insert colored text
-def insert_colored_text(text_widget, text, color):
+'''
+def insert_colored_text(text_widget, text, color, center=False):
     text_widget.tag_configure(color, foreground=color)
     text_widget.insert(tk.END, text, color)
     if ".frame5" not in str(text_widget):
         text_widget.see(tk.END)
-    # else:
-    #     text_widget.see(LoraDB[MyLora][1])
-
+'''
+def insert_colored_text(text_widget, text, color, center=False):
+    text_widget.tag_configure(color, foreground=color)
+    text_widget.insert(tk.END, text, color)
+    if center:
+        text_widget.tag_configure("center", justify='center')
+        text_widget.tag_add("center", "1.0", "end")
+    if ".frame5" not in str(text_widget):
+        text_widget.see(tk.END)
 #----------------------------------------------------------- Meshtastic Lora Con ------------------------------------------------------------------------
 import meshtastic.tcp_interface
 import meshtastic.serial_interface
@@ -60,7 +74,8 @@ import base64
 # import yaml
 from pubsub import pub
 meshtastic_client = None
-map_delete = int(config.get('meshtastic', 'mep_delete_time'))
+map_delete = int(config.get('meshtastic', 'map_delete_time')) * 60
+map_oldnode = int(config.get('meshtastic', 'map_oldnode_time')) * 60
 
 try:
     from meshtastic.protobuf import config_pb2
@@ -362,6 +377,7 @@ def on_meshtastic_message(packet, interface, loop=None):
                     for neighbor in text:
                         nodeid = hex(neighbor["nodeId"])[2:]
                         if nodeid in LoraDB and LoraDB[nodeid][1] != '':
+                            LoraDB[nodeid][0] = tnow
                             # Lets add to map ass well if we are not on map abd our db knows the station
                             if nodeid not in MapMarkers:
                                 MapMarkers[nodeid] = [None, True, tnow, None]
@@ -412,8 +428,8 @@ def on_meshtastic_message(packet, interface, loop=None):
                     MapMarkers[fromraw][1] = True
                     MapMarkers[fromraw][0].change_icon(tk_mqtt)
                 elif viaMqtt == False and MapMarkers[fromraw][1] == True:
-                    MapMarkers[fromraw][0].change_icon(tk_direct)
                     MapMarkers[fromraw][1] = False
+                    MapMarkers[fromraw][0].change_icon(tk_direct)
             elif LoraDB[fromraw][3] != 81.0 and LoraDB[fromraw][4] != 186.0 and viaMqtt == True:
                 MapMarkers[fromraw] = [None, True, tnow, None]
                 MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=fromraw, command = click_command)
@@ -459,7 +475,7 @@ def updatesnodes():
     for nodes, info in meshtastic_client.nodes.items():
         if "user" in info:
             tmp = info['user']
-            if "id" in tmp:
+            if "id" in tmp and tmp['id'] != '':
                 # Only push to DB if we actually get a node ID
                 nodeID = str(tmp['id'])[1:]
                 nodeLast = 0
@@ -473,8 +489,16 @@ def updatesnodes():
                     LoraDB[nodeID] = [nodeLast, '', '', 81.0, 186.0, 0, '', '', nodeLast, '', '', '',-1]
                     insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] New Node Logged ! #" + nodeID + "\n", "#c24400")
 
-                if "shortName" in tmp: LoraDB[nodeID][1] = str(tmp['shortName'].encode('ascii', 'xmlcharrefreplace'), 'ascii').replace("\n", "")
-                if "longName" in tmp: LoraDB[nodeID][2] = str(tmp['longName'].encode('ascii', 'xmlcharrefreplace'), 'ascii').replace("\n", "")
+                # New dode?
+                if "shortName" in tmp and "longName" in tmp:
+                    lora_sn = str(tmp['shortName'].encode('ascii', 'xmlcharrefreplace'), 'ascii').replace("\n", "")
+                    lora_ln = str(tmp['longName'].encode('ascii', 'xmlcharrefreplace'), 'ascii').replace("\n", "")
+                    if lora_sn in lora_ln and "Meshtastic" in lora_ln:
+                        if LoraDB[nodeID][1] == '': LoraDB[nodeID][1] = lora_ln
+                        if LoraDB[nodeID][2] == '': LoraDB[nodeID][2] = lora_ln
+                    else:
+                        LoraDB[nodeID][1] = lora_sn
+                        LoraDB[nodeID][2] = lora_ln
                 if "macaddr" in tmp: LoraDB[nodeID][6] = str(tmp['macaddr'])
                 if "hwModel" in tmp: LoraDB[nodeID][7] = str(tmp['hwModel'])
                 LoraDB[nodeID][12] = -1
@@ -605,8 +629,7 @@ if __name__ == "__main__":
     from PIL import Image, ImageTk
     import tkinter as tk
     import customtkinter
-    from tkinter import scrolledtext
-    from tkinter import ttk
+    from tkinter import Frame
     from tkintermapview import TkinterMapView
 
     def on_closing():
@@ -650,6 +673,7 @@ if __name__ == "__main__":
     tk_icon = ImageTk.PhotoImage(Image.open("marker.png"))
     tk_direct = ImageTk.PhotoImage(Image.open("marker-green.png"))
     tk_mqtt = ImageTk.PhotoImage(Image.open("marker-orange.png"))
+    tk_old = ImageTk.PhotoImage(Image.open("marker-grey.png"))
 
     my_msg = tk.StringVar()  # For the messages to be sent.
     my_msg.set("")
@@ -695,10 +719,71 @@ if __name__ == "__main__":
     map = TkinterMapView(frame_right, padx=0, pady=0, bg_color='#121212')
     map.grid(row=0, column=0, sticky='nsew')
 
+    overlay = None
     def click_command(marker):
+        # Info we get from marker click
         print(marker.text)
         print(marker.data)
-        print("Clicked on Marker")
+
+        global overlay
+        # Destroy the existing overlay if it exists
+        if overlay is not None:
+            overlay.destroy()
+
+        overlay = Frame(root, bg='#242424', padx=3, pady=2, highlightbackground='#999999', highlightthickness=1)
+        overlay.place(relx=0.5, rely=0.5, anchor='center')  # Center the frame
+
+        # info_label = tk.Label(overlay, text=text_loc, bg='#242424', fg='#d1d1d1', font=('Fixedsys', 12))
+        # info_label.pack(pady=2)
+
+        info_label = tk.Text(overlay, bg='#242424', fg='#dddddd', font=('Fixedsys', 10), width=51, height=12)
+        info_label.pack(pady=2)
+        insert_colored_text(info_label, "\n⬢ ", "#" + marker.data[:6],  center=True)
+        # text_loc += html.unescape(LoraDB[marker.data][1]).ljust(10)
+        if LoraDB[marker.data][2] != '':
+            text_loc = html.unescape(LoraDB[marker.data][2]) + '\n'
+        elif LoraDB[marker.data][1] != '':
+            text_loc = html.unescape(LoraDB[marker.data][2]) + '\n'
+        else:
+            text_loc = '#' + str(marker.data) + '\n'
+        insert_colored_text(info_label, text_loc, "#02bae8",  center=True)
+        text_loc = ('─' * 34) + '\n'
+        insert_colored_text(info_label, text_loc, "#3d3d3d")
+        text_loc = ' Position : ' + str(round(LoraDB[marker.data][3],6)) + '/' + str(round(LoraDB[marker.data][4],6)) + ' (' + str(LoraDB[marker.data][9]) + ')\n'
+        text_loc += ' Altitude : ' + str(LoraDB[marker.data][5]) + 'm\n'
+        insert_colored_text(info_label, text_loc, "#d1d1d1")
+        text_loc = ('─' * 34) + '\n'
+        insert_colored_text(info_label, text_loc, "#3d3d3d")
+        text_loc = ' Hex ID   : ' + '!' + str(marker.data) + '\n'
+        text_loc += ' HW Model : ' + str(LoraDB[marker.data][7]).ljust(15)
+        text_loc += 'MAC Addr  : ' + str(LoraDB[marker.data][6]) + '\n'
+        text_loc += ' Last SNR : ' + str(LoraDB[marker.data][11]).ljust(15)
+        text_loc += 'Last Seen : ' + ez_date(int(time.time()) - LoraDB[marker.data][0]) + '\n'
+        text_loc += ' Power    : -\n'
+        if LoraDB[marker.data][3] != 81.0 and LoraDB[marker.data][3] != 186.0:
+            text_loc += ' Distance : ' + calc_gc(LoraDB[marker.data][3], LoraDB[marker.data][4], LoraDB[MyLora][3], LoraDB[MyLora][4]).ljust(15)
+        else:
+            text_loc += ' Distance : -\n'
+        if LoraDB[marker.data][12] > 0:
+            text_loc += 'HopsAway  : ' + str(LoraDB[marker.data][12]) + '\n'
+        insert_colored_text(info_label, text_loc, "#d1d1d1")
+
+        # Create a frame to hold the buttons
+        button_frame = Frame(overlay, bg='#242424')
+        button_frame.pack(pady=2)
+
+        # Add buttons
+        button1 = tk.Button(button_frame, text="Button 1", command=lambda: print("Button 1 clicked"), bg='#242424', fg='#d1d1d1', font=('Fixedsys', 10))
+        button1.pack(side=tk.LEFT, padx=5)
+
+        button2 = tk.Button(button_frame, text="Button 2", command=lambda: print("Button 2 clicked"), bg='#242424', fg='#d1d1d1', font=('Fixedsys', 10))
+        button2.pack(side=tk.LEFT, padx=5)
+
+        button3 = tk.Button(button_frame, text="Button 3", command=lambda: print("Button 3 clicked"), bg='#242424', fg='#d1d1d1', font=('Fixedsys', 10))
+        button3.pack(side=tk.LEFT, padx=5)
+
+        close_button = tk.Button(overlay, text="Close", command=overlay.destroy, bg='#242424', fg='#d1d1d1', font=('Fixedsys', 10))
+        close_button.pack(pady=5)
 
     frame_middle = tk.Frame(frame, bg="#242424", borderwidth=0, highlightthickness=0, padx=0, pady=0)
     frame_middle.grid(row=0, column=2, rowspan=5, columnspan=1, padx=0, pady=0, sticky='nsew')
@@ -724,7 +809,27 @@ if __name__ == "__main__":
         text_box_middle.mark_set(LoraDB[MyLora][1], "1.0")
 
         for node_id, node_info in sorted_nodes:
-            if tnow - node_info[0] < map_delete:
+            if tnow - node_info[0] >= map_oldnode:
+                if node_id in MapMarkers:
+                    if len(MapMarkers[node_id]) > 3 and MapMarkers[node_id][3] is not None:
+                        MapMarkers[node_id][3].delete()
+                    MapMarkers[node_id][0].delete()
+                    del MapMarkers[node_id]
+            elif tnow - node_info[0] >= map_delete:
+                if node_id in MapMarkers:
+                    if MapMarkers[node_id][0].text_color != '#9d9d9d':
+                        if len(MapMarkers[node_id]) > 3 and MapMarkers[node_id][3] is not None:
+                            MapMarkers[node_id][3].delete()
+                        MapMarkers[node_id][0].delete()
+                        MapMarkers[node_id][0] = None
+                        MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_old, text_color = '#9d9d9d', font = ('Fixedsys', 8), data=node_id, command = click_command)
+                        MapMarkers[node_id][0].text_color = '#9d9d9d'
+                else:
+                    if 'Meshtastic' in LoraDB[node_id][1]:
+                        LoraDB[node_id][1] = (LoraDB[node_id][1])[-4:]
+                    MapMarkers[node_id] = [None, True, tnow, None]
+                    MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_old, text_color = '#9d9d9d', font = ('Fixedsys', 8), data=node_id, command = click_command)
+            elif tnow - node_info[0] < map_delete:
                 node_name = node_info[1].ljust(9)
                 node_time = ez_date(tnow - node_info[0]).rjust(10)
                 if LoraDB[node_id][3] != 81.0 and LoraDB[node_id][3] != 186.0:
@@ -744,6 +849,11 @@ if __name__ == "__main__":
                         if node_id not in MapMarkers:
                             MapMarkers[node_id] = [None, True, tnow, None]
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
+                        elif MapMarkers[node_id][0].text_color == '#9d9d9d':
+                            MapMarkers[node_id][0].delete()
+                            MapMarkers[node_id][0] = None
+                            MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
+                            MapMarkers[node_id][0].text_color = '#02bae8'
                     else:
                         insert_colored_text(text_box_middle, ('─' * 14) + '\n', "#3d3d3d")
                         insert_colored_text(text_box_middle, f" {node_name}{node_time}\n", "#00c983")
@@ -752,15 +862,15 @@ if __name__ == "__main__":
                         if node_id not in MapMarkers:
                             MapMarkers[node_id] = [None, False, tnow, None]
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
-            elif tnow - node_info[0] > map_delete:
-                if node_id in MapMarkers:
-                    if len(MapMarkers[node_id]) > 3 and MapMarkers[node_id][3] is not None:
-                        MapMarkers[node_id][3].delete()
-                    MapMarkers[node_id][0].delete()
-                    del MapMarkers[node_id]
+                        elif MapMarkers[node_id][0].text_color == '#9d9d9d':
+                            MapMarkers[node_id][0].delete()
+                            MapMarkers[node_id][0] = None
+                            MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
+                            MapMarkers[node_id][0].text_color = '#02bae8'
 
         text_box_middle.yview_moveto(current_view[0])
         if tnow > tlast + 900:
+            updatesnodes()
             tlast = tnow
             with open(LoraDBPath, 'wb') as f:
                 pickle.dump(LoraDB, f)
