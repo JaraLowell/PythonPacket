@@ -203,7 +203,6 @@ def logLora(nodeID, info):
 def on_meshtastic_message(packet, interface, loop=None):
     # print(yaml.dump(packet))
     global MyLora, MyLoraText1, MyLoraText2, LoraDB, MapMarkers
-    donoting = True
     ischat = False
     tnow = int(time.time())
     if "decoded" in packet:
@@ -238,57 +237,43 @@ def on_meshtastic_message(packet, interface, loop=None):
 
             # Lets Work the Msgs
             if data["portnum"] == "TELEMETRY_APP":
-                if "deviceMetrics" in  data["telemetry"]:
-                    text = data["telemetry"]["deviceMetrics"]
-                    text_raws = ''
-                    LoraDB[fromraw][9] = ''
-                    if "batteryLevel" in text:
-                        text_raws += 'Battery: ' + str(text["batteryLevel"]) + '% '
-                        if text["batteryLevel"] > 100:
-                            LoraDB[fromraw][9] = ''
-                        else:
-                            LoraDB[fromraw][9] = str(text["batteryLevel"]) + '% '
-                    if "voltage" in text:
-                        text_raws += 'Power: ' + str(round(text["voltage"],2)) + 'v '
-                        LoraDB[fromraw][9] += str(round(text["voltage"],2)) + 'v'
-                    if "channelUtilization" in text:
-                        text_raws += 'ChUtil: ' + str(round(text["channelUtilization"],2)) + '% '
-                    if "airUtilTx" in text:
-                        text_raws += 'AirUtilTX (DutyCycle): ' + str(round(text["airUtilTx"],2)) + '% '
-                    if "uptimeSeconds" in text:
-                        text_raws += '\n' + (' ' * 11) + 'Uptime ' + ez_date(text["uptimeSeconds"])
-
-                    if text_raws != '':
-                        text_raws = 'Node Telemetry\n' + (' ' * 11) + text_raws
-                    else:
-                        text_raws = 'Node Telemetry'
-
-                    if MyLora == fromraw:
-                        MyLoraText1 = (' ChUtil').ljust(13) + str(round(text["channelUtilization"],2)).rjust(6) + '%\n' + (' AirUtilTX').ljust(13) + str(round(text["airUtilTx"],2)).rjust(6) + '%\n' + (' Power').ljust(13) + str(round(text["voltage"],2)).rjust(6) + 'v\n' + (' Battery').ljust(13) + str(text["batteryLevel"]).rjust(6) + '%\n'
-                elif "localStats" in data["telemetry"]:
-                    text = data["telemetry"]["localStats"]
-                    text_raws = ''
-                    if "numPacketsTx" in text:
-                        text_raws += 'PacketsTx: ' + str(text["numPacketsTx"]) + ' '
-                    if "numPacketsRx" in text:
-                        text_raws += 'PacketsRx: ' + str(text["numPacketsRx"]) + ' '
-                    if "numPacketsRxBad" in text:
-                        text_raws += 'PacketsRxBad: ' + str(text["numPacketsRxBad"]) + ' '
-                    if "numOnlineNodes" in text and "numTotalNodes" in text:
-                        text_raws += 'Nodes: ' + str(text["numOnlineNodes"]) + '/' + str(text["numTotalNodes"]) + ' '
-                    
-                    if text_raws != '':
-                        if fromraw == MyLora:
-                            root.wm_title("Meshtastic Lora Logger - " + html.unescape(LoraDB[MyLora][1]) + ' (' + text_raws[:-1] + ')')
-                        text_raws = 'Node Telemetry\n' + (' ' * 11) + text_raws[:-1]
-                    else:
-                        text_raws = 'Node Telemetry'
-                    
-                    if MyLora == fromraw:
-                        MyLoraText2 = (' PacketsTx').ljust(13) + str(text["numPacketsTx"]).rjust(7) + '\n' + (' PacketsRx').ljust(13) + str(text["numPacketsRx"]).rjust(7) + '\n' + (' Rx Bad').ljust(13) + str(text["numPacketsRxBad"]).rjust(7) + '\n' + (' Nodes').ljust(13) + str(text["numOnlineNodes"]).rjust(7) + '\n'
-                else:
-                    text_raws = 'Node Telemetry'
-                donoting = False
+                text_raws = 'Node Telemetry'
+                telemetry = packet['decoded'].get('telemetry', {})
+                if telemetry:
+                    device_metrics = telemetry.get('deviceMetrics', {})
+                    if device_metrics:
+                        LoraDB[fromraw][9] = ''
+                        text_raws += '\n' + (' ' * 11) + 'Battery: ' + str(device_metrics.get('batteryLevel', 0)) + '% '
+                        if device_metrics.get('batteryLevel', 0) < 101:
+                            LoraDB[fromraw][9] = str(device_metrics.get('batteryLevel', 0)) + '% '
+                        text_raws += 'Power: ' + str(round(device_metrics.get('voltage', 0.00),2)) + 'v '
+                        LoraDB[fromraw][9] += str(round(device_metrics.get('voltage', 0.00),2)) + 'v'
+                        text_raws += 'ChUtil: ' + str(round(device_metrics.get('channelUtilization', 0.00),2)) + '% '
+                        text_raws += 'AirUtilTX (DutyCycle): ' + str(round(device_metrics.get('airUtilTx', 0.00),2)) + '%'
+                        text_raws += '\n' + (' ' * 11) + 'Uptime ' + ez_date(device_metrics.get('uptimeSeconds', 0))
+                        if MyLora == fromraw:
+                            MyLoraText1 = (' ChUtil').ljust(13) + str(round(device_metrics.get('channelUtilization', 0.00),2)).rjust(6) + '%\n' + (' AirUtilTX').ljust(13) + str(round(device_metrics.get('airUtilTx', 0.00),2)).rjust(6) + '%\n' + (' Power').ljust(13) + str(round(device_metrics.get('voltage', 0.00),2)).rjust(6) + 'v\n' + (' Battery').ljust(13) + str(device_metrics.get('batteryLevel', 0)).rjust(6) + '%\n'
+                    power_metrics = telemetry.get('powerMetrics', {})
+                    if power_metrics:
+                        text_raws += '\n' + (' ' * 11) + 'CH1 Voltage: ' + str(round(power_metrics.get('ch1_voltage', 'N/A'),2)) + 'v'
+                        text_raws += ' CH1 Current: ' + str(round(power_metrics.get('ch1_current', 'N/A'),2)) + 'mA'
+                        text_raws += ' CH2 Voltage: ' + str(round(power_metrics.get('ch2_voltage', 'N/A'),2)) + 'v'
+                        text_raws += ' CH2 Current: ' + str(round(power_metrics.get('ch2_current', 'N/A'),2)) + 'mA'
+                    environment_metrics = telemetry.get('environmentMetrics', {})
+                    if environment_metrics:
+                        text_raws += '\n' + (' ' * 11) + 'Temperature: ' + str(round(environment_metrics.get('temperature', 0.00),2)) + '°C'
+                        text_raws += ' Humidity: ' + str(round(environment_metrics.get('relativeHumidity', 0.00),2)) + '%'
+                        text_raws += ' Pressure: ' + str(round(environment_metrics.get('barometricPressure', 0.00),2)) + 'hPa'
+                    localstats_metrics = telemetry.get('localStats', {})
+                    if localstats_metrics:
+                        text_raws += '\n' + (' ' * 11) + 'PacketsTx: ' + str(localstats_metrics.get('numPacketsTx', 0))
+                        text_raws += ' PacketsRx: ' + str(localstats_metrics.get('numPacketsRx', 0))
+                        text_raws += ' PacketsRxBad: ' + str(localstats_metrics.get('numPacketsRxBad', 0))
+                        text_raws += ' Nodes: ' + str(localstats_metrics.get('numOnlineNodes', 0)) + '/' + str(localstats_metrics.get('numTotalNodes', 0))
+                        if MyLora == fromraw:
+                            MyLoraText2 = (' PacketsTx').ljust(13) + str(localstats_metrics.get('numPacketsTx', 0)).rjust(7) + '\n' + (' PacketsRx').ljust(13) + str(localstats_metrics.get('numPacketsRx', 0)).rjust(7) + '\n' + (' Rx Bad').ljust(13) + str(localstats_metrics.get('numPacketsRxBad', 0)).rjust(7) + '\n' + (' Nodes').ljust(13) + str(localstats_metrics.get('numOnlineNodes', 0)).rjust(7) + '\n'
+                if text_raws == 'Node Telemetry':
+                    text_raws += '\n' + (' ' * 11) + 'No Data'
             elif data["portnum"] == "CHAT_APP":
                 text = data["chat"]
                 if "text" in text:
@@ -306,7 +291,6 @@ def on_meshtastic_message(packet, interface, loop=None):
                     playsound('data/NewChat.mp3')
                 else:
                     text_raws = 'Node Chat Encrypted'
-                donoting = False
             elif data["portnum"] == "POSITION_APP":
                 text = data["position"]
                 if "altitude" in text:
@@ -334,7 +318,6 @@ def on_meshtastic_message(packet, interface, loop=None):
                     logLora(packet["fromId"][1:], ['POSITION_APP', text["latitude"], text["longitude"], text["altitude"]])
                 else:
                     text_raws = 'Node Position'
-                donoting = False
             elif data["portnum"] == "NODEINFO_APP":
                 text = data["user"]
                 if "shortName" in text:
@@ -351,10 +334,12 @@ def on_meshtastic_message(packet, interface, loop=None):
                     text_raws = "Node Info using hardware " + lora_mo
                     if "isLicensed" in text and text["isLicensed"] == True:
                         text_raws += " (Licensed)"
-                    text_from = LoraDB[packet["fromId"][1:]][1] + " (" + LoraDB[packet["fromId"][1:]][2] + ")"
+                    if 'role' in text:
+                        text_raws +=  " Role: " + text["role"]
+
+                    text_from = lora_sn + " (" + lora_ln + ")"
                 else:
-                    text_raws = 'Node Info'
-                donoting = False
+                    text_raws = 'Node Info No Data'
             elif data["portnum"] == "TEXT_MESSAGE_APP" and "text" in data:
                 text_msgs = str(data["text"].encode('ascii', 'xmlcharrefreplace'), 'ascii').rstrip()
                 text_raws = data["text"]
@@ -367,7 +352,6 @@ def on_meshtastic_message(packet, interface, loop=None):
                     text_chns = str(mylorachan[packet["channel"]])
 
                 ischat = True
-                donoting = False
                 playsound('data/NewChat.mp3')
             elif data["portnum"] == "NEIGHBORINFO_APP":
                 text_raws = 'Node Neighborinfo'
@@ -413,12 +397,8 @@ def on_meshtastic_message(packet, interface, loop=None):
                                 MapMarkers[fromraw][3] = map.set_path(listmaps, color="#006642", width=2)
                         except Exception as e:
                             print("\33[0;31m " + repr(e) + "\33[1;37m\33[0m") 
-
-                donoting = False
             else:
                 text_raws = 'Node ' + (data["portnum"].split('_APP', 1)[0]).title()
-                #if MyLora != fromraw:
-                donoting = False
 
             # Cleanup and get ready to print
             if data["portnum"] != "POSITION_APP" and data["portnum"] != "TEXT_MESSAGE_APP":
@@ -451,7 +431,7 @@ def on_meshtastic_message(packet, interface, loop=None):
             text_from = html.unescape(text_from)
             text_raws = html.unescape(text_raws)
 
-            if donoting == False and text_raws != '' and MyLora != fromraw:
+            if text_raws != '' and MyLora != fromraw:
                 print("[LoraNet]\33[0;37m " + text_from + LoraDB[fromraw][10] + "\33[0m")
                 insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + ' [' + fromraw + ']' + LoraDB[fromraw][10] + "\n", "#d1d1d1")
                 if ischat == True:
@@ -473,12 +453,30 @@ def on_meshtastic_message(packet, interface, loop=None):
                     insert_colored_text(text_box1, (' ' * 11) + text_raws + text_from + '\n', "#00c983")
                     if ischat == True:
                         insert_colored_text(text_box3, (' ' * 11) + '[' + text_chns +'] ' + text_raws + '\n', "#02bae8")
-            elif donoting == False and text_raws != '' and MyLora == fromraw:
+            elif text_raws != '' and MyLora == fromraw:
                 print("[LoraNet]\33[0;37m " + text_from + LoraDB[fromraw][10] + "\33[0m")
                 insert_colored_text(text_box2, "[" + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + LoraDB[fromraw][10] + "\n", "#d1d1d1")
                 insert_colored_text(text_box2, (' ' * 11) + text_raws + '\n', "#00c983")
+            else:
+                insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + ' [' + fromraw + ']' + LoraDB[fromraw][10] + "\n", "#d1d1d1")
         else:
             print("[LoraNet] No ID in packet")
+            insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] No NodeID in packet\n', "#c24400")
+    else:
+        if "fromId" in packet and packet["fromId"] is not None:
+            text_from  = packet["fromId"][1:]
+            if text_from != '':
+                if text_from in LoraDB:
+                    LoraDB[text_from][0] = tnow
+                    if LoraDB[text_from][1] != '':
+                        text_from = LoraDB[text_from][1] + " (" + LoraDB[text_from][2] + ") "
+                else:
+                    LoraDB[text_from] = [tnow, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '', -1]
+                    insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] New Node Logged ! #" + text_from + "\n", "#c24400")
+                    playsound('data/NewNode.mp3')
+                    text_from = text_from + " "
+        print("[LoraNet] No decoded in packet")
+        insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + 'Packed Encrypted\n', "#c24400")
 
 def updatesnodes():
     global LoraDB, MyLora, MapMarkers
@@ -496,13 +494,11 @@ def updatesnodes():
 
                 if "lastHeard" in info and info["lastHeard"] is not None: nodeLast = info['lastHeard']
 
-                if nodeID in LoraDB:
-                    LoraDB[nodeID][0] = nodeLast
-                else:
+                if nodeID not in LoraDB:
                     LoraDB[nodeID] = [nodeLast, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '',-1]
                     insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] New Node Logged ! #" + nodeID + "\n", "#c24400")
 
-                # New dode?
+                # New node?
                 if "shortName" in tmp and "longName" in tmp:
                     lora_sn = str(tmp['shortName'].encode('ascii', 'xmlcharrefreplace'), 'ascii').replace("\n", "")
                     lora_ln = str(tmp['longName'].encode('ascii', 'xmlcharrefreplace'), 'ascii').replace("\n", "")
