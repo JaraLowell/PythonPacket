@@ -198,8 +198,7 @@ def logLora(nodeID, info):
         LoraDB[nodeID][3] = info[1] # latitude
         LoraDB[nodeID][4] = info[2] # longitude
         LoraDB[nodeID][5] = info[3] # altitude
-        LoraDB[nodeID][9] = LatLon2qth(info[1],info[2])
-    
+
 def on_meshtastic_message(packet, interface, loop=None):
     # print(yaml.dump(packet))
     global MyLora, MyLoraText1, MyLoraText2, LoraDB, MapMarkers
@@ -240,10 +239,13 @@ def on_meshtastic_message(packet, interface, loop=None):
                 if "deviceMetrics" in  data["telemetry"]:
                     text = data["telemetry"]["deviceMetrics"]
                     text_raws = ''
-                    if "voltage" in text:
-                        text_raws += 'Power: ' + str(round(text["voltage"],2)) + 'v '
+                    LoraDB[fromraw][9] = ''
                     if "batteryLevel" in text:
                         text_raws += 'Battery: ' + str(text["batteryLevel"]) + '% '
+                        LoraDB[fromraw][9] = str(text["batteryLevel"]) + '% '
+                    if "voltage" in text:
+                        text_raws += 'Power: ' + str(round(text["voltage"],2)) + 'v '
+                        LoraDB[fromraw][9] += str(round(text["voltage"],2)) + 'v'
                     if "channelUtilization" in text:
                         text_raws += 'ChUtil: ' + str(round(text["channelUtilization"],2)) + '% '
                     if "airUtilTx" in text:
@@ -255,7 +257,7 @@ def on_meshtastic_message(packet, interface, loop=None):
                         text_raws = 'Node Telemetry\n' + (' ' * 11) + text_raws
                     else:
                         text_raws = 'Node Telemetry'
-                    
+
                     if MyLora == fromraw:
                         MyLoraText1 = (' ChUtil').ljust(13) + str(round(text["channelUtilization"],2)).rjust(6) + '%\n' + (' AirUtilTX').ljust(13) + str(round(text["airUtilTx"],2)).rjust(6) + '%\n' + (' Power').ljust(13) + str(round(text["voltage"],2)).rjust(6) + 'v\n' + (' Battery').ljust(13) + str(text["batteryLevel"]).rjust(6) + '%\n'
                 elif "localStats" in data["telemetry"]:
@@ -472,13 +474,14 @@ def on_meshtastic_message(packet, interface, loop=None):
 def updatesnodes():
     info = ''
     itmp = 0
+    tnow = int(time.time())
     for nodes, info in meshtastic_client.nodes.items():
         if "user" in info:
             tmp = info['user']
             if "id" in tmp and tmp['id'] != '':
                 # Only push to DB if we actually get a node ID
                 nodeID = str(tmp['id'])[1:]
-                nodeLast = 0
+                nodeLast = tnow
                 itmp = itmp + 1
 
                 if "lastHeard" in info and info["lastHeard"] is not None: nodeLast = info['lastHeard']
@@ -486,7 +489,7 @@ def updatesnodes():
                 if nodeID in LoraDB:
                     LoraDB[nodeID][0] = nodeLast
                 else:
-                    LoraDB[nodeID] = [nodeLast, '', '', 81.0, 186.0, 0, '', '', nodeLast, '', '', '',-1]
+                    LoraDB[nodeID] = [nodeLast, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '',-1]
                     insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] New Node Logged ! #" + nodeID + "\n", "#c24400")
 
                 # New dode?
@@ -509,7 +512,6 @@ def updatesnodes():
                     if "latitude" in tmp2 and "longitude" in tmp2:
                         LoraDB[nodeID][3] = tmp2['latitude']
                         LoraDB[nodeID][4] = tmp2['longitude']
-                        LoraDB[nodeID][9] = LatLon2qth(tmp2['latitude'],tmp2['longitude'])
                     if "altitude" in tmp:
                         LoraDB[nodeID][5] = tmp['altitude']
                     
@@ -666,14 +668,14 @@ if __name__ == "__main__":
     root = customtkinter.CTk()
     root.title("Meshtastic Lora Logger")
     root.resizable(True, True)
-    root.iconbitmap("mesh.ico")
+    root.iconbitmap("data\mesh.ico")
     root.protocol('WM_DELETE_WINDOW', on_closing)
 
     # Map MArker Images
-    tk_icon = ImageTk.PhotoImage(Image.open("marker.png"))
-    tk_direct = ImageTk.PhotoImage(Image.open("marker-green.png"))
-    tk_mqtt = ImageTk.PhotoImage(Image.open("marker-orange.png"))
-    tk_old = ImageTk.PhotoImage(Image.open("marker-grey.png"))
+    tk_icon = ImageTk.PhotoImage(Image.open("data\marker.png"))
+    tk_direct = ImageTk.PhotoImage(Image.open("data\marker-green.png"))
+    tk_mqtt = ImageTk.PhotoImage(Image.open("data\marker-orange.png"))
+    tk_old = ImageTk.PhotoImage(Image.open("data\marker-grey.png"))
 
     my_msg = tk.StringVar()  # For the messages to be sent.
     my_msg.set("")
@@ -749,17 +751,18 @@ if __name__ == "__main__":
         insert_colored_text(info_label, text_loc, "#02bae8",  center=True)
         text_loc = ('─' * 34) + '\n'
         insert_colored_text(info_label, text_loc, "#3d3d3d")
-        text_loc = ' Position : ' + str(round(LoraDB[marker.data][3],6)) + '/' + str(round(LoraDB[marker.data][4],6)) + ' (' + str(LoraDB[marker.data][9]) + ')\n'
+        text_loc = ' Position : ' + str(round(LoraDB[marker.data][3],6)) + '/' + str(round(LoraDB[marker.data][4],6)) + ' (' + LatLon2qth(round(LoraDB[marker.data][3],6),round(LoraDB[marker.data][4],6)) + ')\n'
         text_loc += ' Altitude : ' + str(LoraDB[marker.data][5]) + 'm\n'
         insert_colored_text(info_label, text_loc, "#d1d1d1")
         text_loc = ('─' * 34) + '\n'
         insert_colored_text(info_label, text_loc, "#3d3d3d")
-        text_loc = ' Hex ID   : ' + '!' + str(marker.data) + '\n'
-        text_loc += ' HW Model : ' + str(LoraDB[marker.data][7]).ljust(15)
+        text_loc = ' HW Model : ' + str(LoraDB[marker.data][7]) + '\n'
+        text_loc += ' Hex ID   : ' + '!' + str(marker.data).ljust(14)
         text_loc += 'MAC Addr  : ' + str(LoraDB[marker.data][6]) + '\n'
         text_loc += ' Last SNR : ' + str(LoraDB[marker.data][11]).ljust(15)
         text_loc += 'Last Seen : ' + ez_date(int(time.time()) - LoraDB[marker.data][0]) + '\n'
-        text_loc += ' Power    : -\n'
+        text_loc += ' Power    : ' + LoraDB[marker.data][9].ljust(15)
+        text_loc += 'First Seen: ' + datetime.fromtimestamp(LoraDB[marker.data][8]).strftime('%b %#d \'%y') + '\n'
         if LoraDB[marker.data][3] != 81.0 and LoraDB[marker.data][3] != 186.0:
             text_loc += ' Distance : ' + calc_gc(LoraDB[marker.data][3], LoraDB[marker.data][4], LoraDB[MyLora][3], LoraDB[MyLora][4]).ljust(15)
         else:
@@ -809,29 +812,35 @@ if __name__ == "__main__":
         text_box_middle.mark_set(LoraDB[MyLora][1], "1.0")
 
         for node_id, node_info in sorted_nodes:
-            if tnow - node_info[0] >= map_oldnode:
+            node_time = LoraDB[node_id][0]
+
+            if LoraDB[node_id][8] == 0: LoraDB[node_id][8] = LoraDB[node_id][0] # Fix for first seen being 0 on old DBs
+            if '%' not in LoraDB[node_id][9]: LoraDB[node_id][9] = '' # Fix for old DBs with no power info
+
+            if tnow - node_time >= map_oldnode and node_id != MyLora:
                 if node_id in MapMarkers:
                     if len(MapMarkers[node_id]) > 3 and MapMarkers[node_id][3] is not None:
                         MapMarkers[node_id][3].delete()
                     MapMarkers[node_id][0].delete()
                     del MapMarkers[node_id]
-            elif tnow - node_info[0] >= map_delete:
+            elif tnow - node_time >= map_delete and node_id != MyLora:
                 if node_id in MapMarkers:
-                    if MapMarkers[node_id][0].text_color != '#9d9d9d':
+                    if MapMarkers[node_id][0].text_color != '#6d6d6d':
                         if len(MapMarkers[node_id]) > 3 and MapMarkers[node_id][3] is not None:
                             MapMarkers[node_id][3].delete()
                         MapMarkers[node_id][0].delete()
                         MapMarkers[node_id][0] = None
-                        MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_old, text_color = '#9d9d9d', font = ('Fixedsys', 8), data=node_id, command = click_command)
-                        MapMarkers[node_id][0].text_color = '#9d9d9d'
+                        MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_old, text_color = '#6d6d6d', font = ('Fixedsys', 8), data=node_id, command = click_command)
+                        MapMarkers[node_id][0].text_color = '#6d6d6d'
                 else:
                     if 'Meshtastic' in LoraDB[node_id][1]:
                         LoraDB[node_id][1] = (LoraDB[node_id][1])[-4:]
                     MapMarkers[node_id] = [None, True, tnow, None]
-                    MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_old, text_color = '#9d9d9d', font = ('Fixedsys', 8), data=node_id, command = click_command)
-            elif tnow - node_info[0] < map_delete:
+                    MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_old, text_color = '#6d6d6d', font = ('Fixedsys', 8), data=node_id, command = click_command)
+                    MapMarkers[node_id][0].text_color = '#6d6d6d'
+            elif tnow - node_time < map_delete or node_id == MyLora:
                 node_name = node_info[1].ljust(9)
-                node_time = ez_date(tnow - node_info[0]).rjust(10)
+                node_wtime = ez_date(tnow - node_time).rjust(10)
                 if LoraDB[node_id][3] != 81.0 and LoraDB[node_id][3] != 186.0:
                     node_dist = calc_gc(LoraDB[node_id][3], LoraDB[node_id][4], LoraDB[MyLora][3], LoraDB[MyLora][4]).ljust(9)
                 else:
@@ -843,26 +852,26 @@ if __name__ == "__main__":
                 if MyLora != node_id:
                     if node_info[10] == ' via mqtt':
                         insert_colored_text(text_box_middle, ('─' * 14) + '\n', "#3d3d3d")
-                        insert_colored_text(text_box_middle, f" {node_name}{node_time}\n", "#c9a500")
+                        insert_colored_text(text_box_middle, f" {node_name}{node_wtime}\n", "#c9a500")
                         insert_colored_text(text_box_middle, f" {node_dist}\n", "#9d9d9d")
                         # insert_colored_text(text_box_middle, f" {node_hop}\n", "#9d9d9d")
                         if node_id not in MapMarkers:
                             MapMarkers[node_id] = [None, True, tnow, None]
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
-                        elif MapMarkers[node_id][0].text_color == '#9d9d9d':
+                        elif MapMarkers[node_id][0].text_color == '#6d6d6d':
                             MapMarkers[node_id][0].delete()
                             MapMarkers[node_id][0] = None
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
                             MapMarkers[node_id][0].text_color = '#02bae8'
                     else:
                         insert_colored_text(text_box_middle, ('─' * 14) + '\n', "#3d3d3d")
-                        insert_colored_text(text_box_middle, f" {node_name}{node_time}\n", "#00c983")
+                        insert_colored_text(text_box_middle, f" {node_name}{node_wtime}\n", "#00c983")
                         insert_colored_text(text_box_middle, f" {node_dist}{node_sig}\n", "#9d9d9d")
                         # insert_colored_text(text_box_middle, f" {node_hop}\n", "#9d9d9d")
                         if node_id not in MapMarkers:
                             MapMarkers[node_id] = [None, False, tnow, None]
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
-                        elif MapMarkers[node_id][0].text_color == '#9d9d9d':
+                        elif MapMarkers[node_id][0].text_color == '#6d6d6d':
                             MapMarkers[node_id][0].delete()
                             MapMarkers[node_id][0] = None
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
