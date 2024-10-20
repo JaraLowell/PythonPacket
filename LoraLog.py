@@ -16,7 +16,7 @@ from unidecode import unidecode
 import configparser
 import pickle
 import html
-
+from playsound import playsound
 
 '''
 Fix sub parts if they brake a main part install > pip install --upgrade setuptools <sub tool name>
@@ -174,6 +174,7 @@ def on_meshtastic_connection(interface, topic=pub.AUTO_TOPIC):
     print("[LoraNet] Connection Made...")
 
 def logLora(nodeID, info):
+    global LoraDB
     tnow = int(time.time())
     if nodeID in LoraDB:
         LoraDB[nodeID][0] = tnow # time last seen
@@ -223,6 +224,7 @@ def on_meshtastic_message(packet, interface, loop=None):
             else:
                 LoraDB[text_from] = [tnow, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '', -1]
                 insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] New Node Logged ! #" + text_from + "\n", "#c24400")
+                playsound('data/NewNode.mp3')
 
             if "viaMqtt" in packet:
                 LoraDB[fromraw][10] = ' via mqtt'
@@ -242,7 +244,10 @@ def on_meshtastic_message(packet, interface, loop=None):
                     LoraDB[fromraw][9] = ''
                     if "batteryLevel" in text:
                         text_raws += 'Battery: ' + str(text["batteryLevel"]) + '% '
-                        LoraDB[fromraw][9] = str(text["batteryLevel"]) + '% '
+                        if text["batteryLevel"] > 100:
+                            LoraDB[fromraw][9] = ''
+                        else:
+                            LoraDB[fromraw][9] = str(text["batteryLevel"]) + '% '
                     if "voltage" in text:
                         text_raws += 'Power: ' + str(round(text["voltage"],2)) + 'v '
                         LoraDB[fromraw][9] += str(round(text["voltage"],2)) + 'v'
@@ -298,6 +303,7 @@ def on_meshtastic_message(packet, interface, loop=None):
                         text_chns = str(mylorachan[packet["channel"]])
 
                     ischat = True
+                    playsound('data/NewChat.mp3')
                 else:
                     text_raws = 'Node Chat Encrypted'
                 donoting = False
@@ -362,6 +368,7 @@ def on_meshtastic_message(packet, interface, loop=None):
 
                 ischat = True
                 donoting = False
+                playsound('data/NewChat.mp3')
             elif data["portnum"] == "NEIGHBORINFO_APP":
                 text_raws = 'Node Neighborinfo'
                 listmaps = []
@@ -435,9 +442,11 @@ def on_meshtastic_message(packet, interface, loop=None):
             elif LoraDB[fromraw][3] != 81.0 and LoraDB[fromraw][4] != 186.0 and viaMqtt == True:
                 MapMarkers[fromraw] = [None, True, tnow, None]
                 MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=fromraw, command = click_command)
+                MapMarkers[fromraw][0].text_color = '#02bae8'
             elif LoraDB[fromraw][3] != 81.0 and LoraDB[fromraw][4] != 186.0 and viaMqtt == False:
                 MapMarkers[fromraw] = [None, False, tnow, None]
                 MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8), data=fromraw, command = click_command)
+                MapMarkers[fromraw][0].text_color = '#02bae8'
 
             text_from = html.unescape(text_from)
             text_raws = html.unescape(text_raws)
@@ -472,6 +481,7 @@ def on_meshtastic_message(packet, interface, loop=None):
             print("[LoraNet] No ID in packet")
 
 def updatesnodes():
+    global LoraDB, MyLora, MapMarkers
     info = ''
     itmp = 0
     tnow = int(time.time())
@@ -664,6 +674,7 @@ if __name__ == "__main__":
             insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] " + html.unescape(text_from) + "\n", "#d1d1d1")
             insert_colored_text(text_box3, (' ' * 11) + '[' + str(mylorachan[0].encode('ascii', 'xmlcharrefreplace'), 'ascii') +'] ' + text2send + '\n', "#02bae8")
             my_msg.set("")
+            playsound('data/NewChat.mp3')
 
     root = customtkinter.CTk()
     root.title("Meshtastic Lora Logger")
@@ -723,11 +734,11 @@ if __name__ == "__main__":
 
     overlay = None
     def click_command(marker):
+        global LoraDB, MyLora, overlay
         # Info we get from marker click
         print(marker.text)
         print(marker.data)
 
-        global overlay
         # Destroy the existing overlay if it exists
         if overlay is not None:
             overlay.destroy()
@@ -799,7 +810,6 @@ if __name__ == "__main__":
     # Function to update the middle frame with the last 30 active nodes
     def update_active_nodes():
         global MyLora, MyLoraText1, MyLoraText2, tlast, MapMarkers, LoraDB
-        tnow = int(time.time())
         current_view = text_box_middle.yview()
         # Sort the nodes by last seen time
         sorted_nodes = sorted(LoraDB.items(), key=lambda item: item[1][0], reverse=True)[:30]
@@ -810,12 +820,12 @@ if __name__ == "__main__":
         if MyLoraText2 != '':
             insert_colored_text(text_box_middle, MyLoraText2, "#d1d1d1")
         text_box_middle.mark_set(LoraDB[MyLora][1], "1.0")
-
+        tnow = int(time.time())
         for node_id, node_info in sorted_nodes:
-            node_time = LoraDB[node_id][0]
+            node_time = node_info[0]
 
             if LoraDB[node_id][8] == 0: LoraDB[node_id][8] = LoraDB[node_id][0] # Fix for first seen being 0 on old DBs
-            if '%' not in LoraDB[node_id][9]: LoraDB[node_id][9] = '' # Fix for old DBs with no power info
+            if '.' not in LoraDB[node_id][9]: LoraDB[node_id][9] = '' # Fix for old DBs with no power info
 
             if tnow - node_time >= map_oldnode and node_id != MyLora:
                 if node_id in MapMarkers:
@@ -858,7 +868,8 @@ if __name__ == "__main__":
                         if node_id not in MapMarkers:
                             MapMarkers[node_id] = [None, True, tnow, None]
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
-                        elif MapMarkers[node_id][0].text_color == '#6d6d6d':
+                            MapMarkers[node_id][0].text_color = '#02bae8'
+                        elif MapMarkers[node_id][0].text_color != '#02bae8':
                             MapMarkers[node_id][0].delete()
                             MapMarkers[node_id][0] = None
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
@@ -871,7 +882,8 @@ if __name__ == "__main__":
                         if node_id not in MapMarkers:
                             MapMarkers[node_id] = [None, False, tnow, None]
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
-                        elif MapMarkers[node_id][0].text_color == '#6d6d6d':
+                            MapMarkers[node_id][0].text_color = '#02bae8'
+                        elif MapMarkers[node_id][0].text_color != '#02bae8':
                             MapMarkers[node_id][0].delete()
                             MapMarkers[node_id][0] = None
                             MapMarkers[node_id][0] = map.set_marker(round(LoraDB[node_id][3],6), round(LoraDB[node_id][4],6), text=html.unescape(LoraDB[node_id][1]), icon = tk_direct, text_color = '#02bae8', font = ('Fixedsys', 8), data=node_id, command = click_command)
