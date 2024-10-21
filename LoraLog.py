@@ -261,8 +261,8 @@ def on_meshtastic_message(packet, interface, loop=None):
                         text_raws += ' CH2 Current: ' + str(round(power_metrics.get('ch2_current', 'N/A'),2)) + 'mA'
                     environment_metrics = telemetry.get('environmentMetrics', {})
                     if environment_metrics:
-                        text_raws += '\n' + (' ' * 11) + 'Temperature: ' + str(round(environment_metrics.get('temperature', 0.00),2)) + '°C'
-                        text_raws += ' Humidity: ' + str(round(environment_metrics.get('relativeHumidity', 0.00),2)) + '%'
+                        text_raws += '\n' + (' ' * 11) + 'Temperature: ' + str(round(environment_metrics.get('temperature', 0.0),1)) + '°C'
+                        text_raws += ' Humidity: ' + str(round(environment_metrics.get('relativeHumidity', 0.0),1)) + '%'
                         text_raws += ' Pressure: ' + str(round(environment_metrics.get('barometricPressure', 0.00),2)) + 'hPa'
                     localstats_metrics = telemetry.get('localStats', {})
                     if localstats_metrics:
@@ -273,7 +273,7 @@ def on_meshtastic_message(packet, interface, loop=None):
                         if MyLora == fromraw:
                             MyLoraText2 = (' PacketsTx').ljust(13) + str(localstats_metrics.get('numPacketsTx', 0)).rjust(7) + '\n' + (' PacketsRx').ljust(13) + str(localstats_metrics.get('numPacketsRx', 0)).rjust(7) + '\n' + (' Rx Bad').ljust(13) + str(localstats_metrics.get('numPacketsRxBad', 0)).rjust(7) + '\n' + (' Nodes').ljust(13) + str(localstats_metrics.get('numOnlineNodes', 0)).rjust(7) + '\n'
                 if text_raws == 'Node Telemetry':
-                    text_raws += '\n' + (' ' * 11) + 'No Data'
+                    text_raws += ' No Data'
             elif data["portnum"] == "CHAT_APP":
                 text = data["chat"]
                 if "text" in text:
@@ -292,51 +292,35 @@ def on_meshtastic_message(packet, interface, loop=None):
                 else:
                     text_raws = 'Node Chat Encrypted'
             elif data["portnum"] == "POSITION_APP":
-                text = data["position"]
-                if "altitude" in text:
-                    text_msgs = "Node Position "
-                    if "latitude" in text:
-                        text_msgs += "latitude " + str(round(text["latitude"],4)) + " "
-                    if "longitude" in text:
-                        text_msgs += "longitude " + str(round(text["longitude"],4)) + " "
-                    '''
-                    if "latitude" in text and "longitude" in text:
-                        qth = LatLon2qth(round(text["latitude"],6), round(text["longitude"],6))
-                        text_msgs += "(" + qth + ") "
-                    '''
-                    if "altitude" in text:
-                        text_msgs += "altitude " + str(text["altitude"]) + " meter"
-                    if "satsInView" in text:
-                        text_msgs += " (" + str(text["satsInView"]) + " satelites)"
-
-                    if("latitude" in text and "longitude" in text and LoraDB[MyLora][3] != 81.0 and LoraDB[MyLora][3] != 186.0 and MyLora != fromraw):
-                        text_msgs += "\n" + (' ' * 11) + "Distance: ±" + calc_gc(text["latitude"], text["longitude"], LoraDB[MyLora][3], LoraDB[MyLora][4])
-                        if fromraw in MapMarkers:
-                            MapMarkers[fromraw][0].set_position(round(text["latitude"],6), round(text["longitude"],6))
-                            MapMarkers[fromraw][0].set_text(LoraDB[fromraw][1])
-                    text_raws = text_msgs
-                    logLora(packet["fromId"][1:], ['POSITION_APP', text["latitude"], text["longitude"], text["altitude"]])
-                else:
-                    text_raws = 'Node Position'
+                position = data["position"]
+                text_msgs = 'Node Position '
+                text_msgs += 'latitude ' + str(round(position.get('latitude', 0.0000),4)) + ' '
+                text_msgs += 'longitude ' + str(round(position.get('longitude', 0.000),4)) + ' '
+                text_msgs += 'altitude ' + str(position.get('altitude', 0)) + ' meter'
+                if "satsInView" in position:
+                    text_msgs += ' (' + str(position.get('satsInView', 0)) + ' satelites)'
+                if('latitude' in position and 'longitude' in position and LoraDB[MyLora][3] != 81.0 and LoraDB[MyLora][3] != 186.0 and MyLora != fromraw):
+                    text_msgs += "\n" + (' ' * 11) + "Distance: ±" + calc_gc(round(position.get('latitude', 0.0000),6), round(position.get('longitude', 0.000),6), LoraDB[MyLora][3], LoraDB[MyLora][4])
+                    if fromraw in MapMarkers:
+                        MapMarkers[fromraw][0].set_position(round(position.get('latitude', 0.0000),6), round(position.get('longitude', 0.000),6))
+                        MapMarkers[fromraw][0].set_text(LoraDB[fromraw][1])
+                text_raws = text_msgs
+                logLora(packet["fromId"][1:], ['POSITION_APP', position.get('latitude', 81.0), position.get('longitude', 186.0), position.get('altitude', 0)])
             elif data["portnum"] == "NODEINFO_APP":
-                text = data["user"]
-                if "shortName" in text:
-                    lora_sn = str(text["shortName"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
-                    lora_ln = str(text["longName"].encode('ascii', 'xmlcharrefreplace'), 'ascii')
-                    lora_mc = text["macaddr"]
-                    lora_mo = text["hwModel"]
-                    if lora_sn in lora_ln and "Meshtastic" in lora_ln:
-                        if LoraDB[fromraw][1] == '': lora_sn = LoraDB[fromraw][1]
-                        if LoraDB[fromraw][2] == '': lora_ln = LoraDB[fromraw][2]
+                node_info = packet['decoded'].get('user', {})
+                if node_info:
+                    lora_sn = str(node_info.get('shortName', str(fromraw)[:-4]).encode('ascii', 'xmlcharrefreplace'), 'ascii')
+                    lora_ln = str(node_info.get('longName', 'N/A').encode('ascii', 'xmlcharrefreplace'), 'ascii')
+                    lora_mc = node_info.get('macaddr', 'N/A')
+                    lora_mo = node_info.get('hwModel', 'N/A')
                     logLora(packet["fromId"][1:], ['NODEINFO_APP', lora_sn, lora_ln, lora_mc, lora_mo])
                     if fromraw in MapMarkers:
                         MapMarkers[fromraw][0].set_text(html.unescape(lora_sn))
                     text_raws = "Node Info using hardware " + lora_mo
-                    if "isLicensed" in text and text["isLicensed"] == True:
+                    if 'isLicensed' in packet:
                         text_raws += " (Licensed)"
-                    if 'role' in text:
-                        text_raws +=  " Role: " + text["role"]
-
+                    if 'role' in packet:
+                        text_raws +=  " Role: " + node_info.get('role', 'N/A')
                     text_from = lora_sn + " (" + lora_ln + ")"
                 else:
                     text_raws = 'Node Info No Data'
@@ -396,7 +380,11 @@ def on_meshtastic_message(packet, interface, loop=None):
                             if len(MapMarkers[fromraw]) > 3 and MapMarkers[fromraw][3] is None:
                                 MapMarkers[fromraw][3] = map.set_path(listmaps, color="#006642", width=2)
                         except Exception as e:
-                            print("\33[0;31m " + repr(e) + "\33[1;37m\33[0m") 
+                            print("\33[0;31m " + repr(e) + "\33[1;37m\33[0m")
+            elif data["portnum"] == "RANGE_TEST_APP":
+                text_raws = 'Node RangeTest'
+                payload = data.get('payload', b'')
+                text_raws += '\n' + (' ' * 11) + 'Payload: ' + str(payload.decode())
             else:
                 text_raws = 'Node ' + (data["portnum"].split('_APP', 1)[0]).title()
 
@@ -707,7 +695,7 @@ if __name__ == "__main__":
 
     # Create three text boxes with padding color
     text_box1 = create_text(frame, 0, 0, 30, 100)
-    insert_colored_text(text_box1, "Meshtastic Lora Logger v 1.2 By Jara Lowell\n", "#02bae8")
+    insert_colored_text(text_box1, "Meshtastic Lora Logger v 1.33 By Jara Lowell\n", "#02bae8")
     text_box2 = create_text(frame, 1, 0, 10, 100)
     text_box3 = create_text(frame, 2, 0, 10, 100)
 
