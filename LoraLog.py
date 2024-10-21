@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import print_function
-try:
-    import __builtin__ as builtins # type: ignore # Python 2
-except ImportError:
-    import builtins # Python 3
-
 import os
 import time
 from datetime import date, datetime
@@ -17,6 +11,9 @@ import configparser
 import pickle
 import html
 from playsound import playsound
+
+f = open('debug.log','w')
+sys.stdout = f
 
 '''
 Fix sub parts if they brake a main part install > pip install --upgrade setuptools <sub tool name>
@@ -44,21 +41,12 @@ MyLoraText2 = ''
 MyPath = os.getcwd() + os.path.sep + 'txtfiles' + os.path.sep
 mylorachan = {}
 tlast = int(time.time())
-today_date = date.today()
-time_now = datetime.now()
 
 if os.path.exists(LoraDBPath):
     with open(LoraDBPath, 'rb') as f:
         LoraDB = pickle.load(f)
 
 # Function to insert colored text
-'''
-def insert_colored_text(text_widget, text, color, center=False):
-    text_widget.tag_configure(color, foreground=color)
-    text_widget.insert(tk.END, text, color)
-    if ".frame5" not in str(text_widget):
-        text_widget.see(tk.END)
-'''
 def insert_colored_text(text_widget, text, color, center=False):
     text_widget.tag_configure(color, foreground=color)
     text_widget.insert(tk.END, text, color)
@@ -71,7 +59,7 @@ def insert_colored_text(text_widget, text, color, center=False):
 import meshtastic.tcp_interface
 import meshtastic.serial_interface
 import base64
-# import yaml
+import yaml
 from pubsub import pub
 meshtastic_client = None
 map_delete = int(config.get('meshtastic', 'map_delete_time')) * 60
@@ -105,7 +93,7 @@ def connect_meshtastic(force_connect=False):
     cnto = target_host
     if config.get('meshtastic', 'interface') != 'tcp':
         cnto = comport
-    print("[LoraNet] Connecting to meshtastic on " + cnto + "...")
+    print("Connecting to meshtastic on " + cnto + "...")
     insert_colored_text(text_box1, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] Connecting to meshtastic on " + cnto + "...\n", "#c24400")
     while not successful and attempts <= retry_limit:
         try:
@@ -117,14 +105,14 @@ def connect_meshtastic(force_connect=False):
         except Exception as e:
             attempts += 1
             if attempts <= retry_limit:
-                print("[LoraNet] Attempt #{attempts-1} failed. Retrying in {attempts} secs... {e}")
+                print("Attempt #{attempts-1} failed. Retrying in {attempts} secs... {e}")
                 time.sleep(attempts * 3)
             else:
-                print("[LoraNet] Could not connect: {e}")
+                print("Could not connect: {e}")
                 return None
 
     nodeInfo = meshtastic_client.getMyNodeInfo()
-    print("[LoraNet] Connected to " + nodeInfo['user']['id'] + " > "  + nodeInfo['user']['shortName'] + " / " + nodeInfo['user']['longName'] + " using a " + nodeInfo['user']['hwModel'])
+    print("Connected to " + nodeInfo['user']['id'] + " > "  + nodeInfo['user']['shortName'] + " / " + nodeInfo['user']['longName'] + " using a " + nodeInfo['user']['hwModel'])
     insert_colored_text(text_box1, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] Connected to " + nodeInfo['user']['id'] + " > "  + nodeInfo['user']['shortName'] + " / " + nodeInfo['user']['longName'] + " using a " + nodeInfo['user']['hwModel'] + "\n", "#c24400")
 
     MyLora = (nodeInfo['user']['id'])[1:]
@@ -162,7 +150,7 @@ def connect_meshtastic(force_connect=False):
     return meshtastic_client
 
 def on_lost_meshtastic_connection(interface):
-    print("[LoraNet] Lost connection. Reconnecting...")
+    print("Lost connection. Reconnecting...")
     insert_colored_text(text_box1, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] Lost connection. Reconnecting...\n", "#c24400")
     connect_meshtastic(force_connect=True)
 
@@ -171,7 +159,7 @@ def on_meshtastic_connection(interface, topic=pub.AUTO_TOPIC):
     # defaults to broadcast, specify a destination ID if you wish
     # interface.sendText("hello mesh")
     insert_colored_text(text_box1, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] Connection Made...\n", "#c24400")
-    print("[LoraNet] Connection Made...")
+    print("Connection Made...")
 
 def logLora(nodeID, info):
     global LoraDB
@@ -200,17 +188,28 @@ def logLora(nodeID, info):
         LoraDB[nodeID][4] = info[2] # longitude
         LoraDB[nodeID][5] = info[3] # altitude
 
+def idToHex(nodeId):
+    return '!' + hex(nodeId)[2:]
+
 def on_meshtastic_message(packet, interface, loop=None):
     # print(yaml.dump(packet))
     global MyLora, MyLoraText1, MyLoraText2, LoraDB, MapMarkers
     ischat = False
     tnow = int(time.time())
+    text_from = ''
     if "decoded" in packet:
         data = packet["decoded"]
-        text_from = ''
-        if "fromId" in packet and packet["fromId"] is not None:
+
+        if "fromId" not in packet or packet["fromId"] == '':
+            if "from" in packet and packet["from"] != '':
+                packet["fromId"] = idToHex(packet["from"])
+                print("Fixed No fromId in packet from #" + packet["fromId"])
+                insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] Fixed missing fromId in packet from [' + str(packet["fromId"]) + ']\n', "#c24400")
+
+        if "fromId" in packet and packet["fromId"] !='':
             text_from  = packet["fromId"][1:]
             if text_from == '':
+                print("Empty ID in packet")
                 #  mmm empty ID ? lets return
                 return
             viaMqtt = False
@@ -222,7 +221,7 @@ def on_meshtastic_message(packet, interface, loop=None):
                     text_from = LoraDB[text_from][1] + " (" + LoraDB[text_from][2] + ")"
             else:
                 LoraDB[text_from] = [tnow, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '', -1]
-                insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] New Node Logged ! #" + text_from + "\n", "#c24400")
+                insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] New Node Logged [!" + text_from + "]\n", "#c24400")
                 playsound('data/NewNode.mp3')
 
             if "viaMqtt" in packet:
@@ -343,7 +342,6 @@ def on_meshtastic_message(packet, interface, loop=None):
                 if fromraw not in MapMarkers and fromraw in LoraDB:
                     MapMarkers[fromraw] = [None, True, tnow, None]
                     MapMarkers[fromraw][0] = map.set_marker(round(LoraDB[fromraw][3],6), round(LoraDB[fromraw][4],6), text=html.unescape(LoraDB[fromraw][1]), icon = tk_mqtt, text_color = '#02bae8', font = ('Fixedsys', 8), data=fromraw, command = click_command)
-
                 if fromraw in MapMarkers:
                     if len(MapMarkers[fromraw]) > 3 and MapMarkers[fromraw][3] is not None:
                         MapMarkers[fromraw][3].delete()
@@ -380,7 +378,9 @@ def on_meshtastic_message(packet, interface, loop=None):
                             if len(MapMarkers[fromraw]) > 3 and MapMarkers[fromraw][3] is None:
                                 MapMarkers[fromraw][3] = map.set_path(listmaps, color="#006642", width=2)
                         except Exception as e:
-                            print("\33[0;31m " + repr(e) + "\33[1;37m\33[0m")
+                            print(repr(e))
+                else:
+                    text_raws += ' No Data'
             elif data["portnum"] == "RANGE_TEST_APP":
                 text_raws = 'Node RangeTest'
                 payload = data.get('payload', b'')
@@ -420,7 +420,6 @@ def on_meshtastic_message(packet, interface, loop=None):
             text_raws = html.unescape(text_raws)
 
             if text_raws != '' and MyLora != fromraw:
-                print("[LoraNet]\33[0;37m " + text_from + LoraDB[fromraw][10] + "\33[0m")
                 insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + ' [' + fromraw + ']' + LoraDB[fromraw][10] + "\n", "#d1d1d1")
                 if ischat == True:
                     insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] " + text_from + LoraDB[fromraw][10] + "\n", "#d1d1d1")
@@ -442,29 +441,27 @@ def on_meshtastic_message(packet, interface, loop=None):
                     if ischat == True:
                         insert_colored_text(text_box3, (' ' * 11) + '[' + text_chns +'] ' + text_raws + '\n', "#02bae8")
             elif text_raws != '' and MyLora == fromraw:
-                print("[LoraNet]\33[0;37m " + text_from + LoraDB[fromraw][10] + "\33[0m")
                 insert_colored_text(text_box2, "[" + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + LoraDB[fromraw][10] + "\n", "#d1d1d1")
                 insert_colored_text(text_box2, (' ' * 11) + text_raws + '\n', "#00c983")
             else:
                 insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + ' [' + fromraw + ']' + LoraDB[fromraw][10] + "\n", "#d1d1d1")
         else:
-            print("[LoraNet] No ID in packet")
-            insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] No NodeID in packet\n', "#c24400")
+            if "from" in packet and packet["from"] is not None:
+                text_from  = hex(packet["from"])[2:]
+            print("No fromId in packet from #" + text_from)
+            print(yaml.dump(packet))
+            insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] No fromId in packet from #' + text_from + '\n', "#c24400")
     else:
+        if "from" in packet and packet["from"] is not None:
+            text_from  = hex(packet["from"])[2:]
         if "fromId" in packet and packet["fromId"] is not None:
             text_from  = packet["fromId"][1:]
-            if text_from != '':
-                if text_from in LoraDB:
-                    LoraDB[text_from][0] = tnow
-                    if LoraDB[text_from][1] != '':
-                        text_from = LoraDB[text_from][1] + " (" + LoraDB[text_from][2] + ") "
-                else:
-                    LoraDB[text_from] = [tnow, '', '', 81.0, 186.0, 0, '', '', tnow, '', '', '', -1]
-                    insert_colored_text(text_box3, "[" + time.strftime("%H:%M:%S", time.localtime()) + "] New Node Logged ! #" + text_from + "\n", "#c24400")
-                    playsound('data/NewNode.mp3')
-                    text_from = text_from + " "
-        print("[LoraNet] No decoded in packet")
-        insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] ' + text_from + 'Packed Encrypted\n', "#c24400")
+        if text_from != '':
+            if text_from in LoraDB:
+                LoraDB[text_from][0] = tnow
+        print("Encrypted packet from !" + text_from)
+        print(yaml.dump(packet))
+        insert_colored_text(text_box1, '[' + time.strftime("%H:%M:%S", time.localtime()) + '] Encrypted packet from [!' + text_from + ']\n', "#c24400")
 
 def updatesnodes():
     global LoraDB, MyLora, MapMarkers
@@ -515,7 +512,7 @@ def updatesnodes():
                             MapMarkers[MyLora][0] = map.set_marker(round(LoraDB[MyLora][3],6), round(LoraDB[MyLora][4],6), text=html.unescape(LoraDB[MyLora][1]), icon = tk_icon, text_color = '#00c983', font = ('Fixedsys', 8), data=MyLora, command = click_command)
                             map.set_position(round(LoraDB[nodeID][3],6), round(LoraDB[nodeID][4],6))
                             map.set_zoom(11)
-                            print("my lat logn set " + str(round(LoraDB[nodeID][3],6)) + " " + str(round(LoraDB[nodeID][4],6)))
+                            print("My Lora lat/long set to " + str(round(LoraDB[nodeID][3],6)) + " " + str(round(LoraDB[nodeID][4],6)))
 
                 if "viaMqtt" in info: LoraDB[nodeID][10] = ' via mqtt'
                 if "snr" in info and info['snr'] is not None: LoraDB[nodeID][11] = str(info['snr']) + 'dB'
@@ -615,12 +612,8 @@ def is_hour_between(start, end):
 if __name__ == "__main__":
     os.system("")
 
-    # Replacing the pring function to always add time
-    _print = print # keep a local copy of the original print
-    builtins.print = lambda *args, **kwargs: _print("\r\33[K\33[1;30m[" + time.strftime("%H:%M:%S", time.localtime()) + "]", *args, **kwargs)
-
     isLora = True
-    print("\33[0;33mLoading meshtastic plugin...")
+    print("Loading meshtastic plugin...")
 
     from PIL import Image, ImageTk
     import tkinter as tk
@@ -629,6 +622,7 @@ if __name__ == "__main__":
     from tkintermapview import TkinterMapView
 
     def on_closing():
+        meshtastic_client.close()
         with open(LoraDBPath, 'wb') as f:
             pickle.dump(LoraDB, f)
         print('Saved Databases')
@@ -715,7 +709,10 @@ if __name__ == "__main__":
 
     map = TkinterMapView(frame_right, padx=0, pady=0, bg_color='#121212')
     map.grid(row=0, column=0, sticky='nsew')
-
+    '''	
+    btn1_img = ImageTk.PhotoImage(Image.open("data\button1.png"))
+    tk.Button(button_frame, image=btn1_img, command=lambda: print("Button 1 clicked"), borderwidth=0)
+    '''	
     overlay = None
     def click_command(marker):
         global LoraDB, MyLora, overlay
@@ -899,4 +896,4 @@ if __name__ == "__main__":
         print('Saved Databases')
         sys.exit()
     except Exception as e:
-        print("\33[0;31m " + repr(e) + "\33[1;37m\33[0m")
+        print(repr(e))
